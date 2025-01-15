@@ -1,7 +1,9 @@
-{
+import 'dotenv/config';
+
+export default ({ config }) => ({
   "expo": {
-    "name": "publicproject-fe",
-    "slug": "publicproject-fe",
+    "name": "4proj-mobile",
+    "slug": "4proj-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -32,6 +34,12 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": process.env.EXPO_PUBLIC_IOS_GOOGLE_CLIENT_ID
+        }
       ]
     ],
     "experiments": {
@@ -39,3 +47,4 @@
     }
   }
 }
+);
