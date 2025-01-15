@@ -1,7 +1,9 @@
 import 'dotenv/config';
 
 export default ({ config }) => ({
+  ...config,
   "expo": {
+    ...config.expo,
     "name": "4proj-mobile",
     "slug": "4proj-mobile",
     "version": "1.0.0",
@@ -14,6 +16,7 @@ export default ({ config }) => ({
       "supportsTablet": true
     },
     "android": {
+       "package": "com.yoannchh.x4projmobile",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
