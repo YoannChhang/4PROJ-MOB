@@ -7,9 +7,11 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { configureGoogleSignIn } from "@/components/googleAuth/configureGoogle";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+configureGoogleSignIn()
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
