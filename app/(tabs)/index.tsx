@@ -4,9 +4,40 @@ import { HelloWave } from "@/components/HelloWave";
 import ParallaxScrollView from "@/components/ParallaxScrollView";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { GoogleSigninButton } from "@react-native-google-signin/google-signin";
+import {
+  GoogleSignin,
+  GoogleSigninButton,
+} from "@react-native-google-signin/google-signin";
+import { useState } from "react";
+import { googleAndroid } from "@/services/useService";
 
 export default function HomeScreen() {
+  const [googleLoading, setGoogleLoading] = useState<boolean>(false);
+
+  const signIn = async () => {
+    setGoogleLoading(true);
+    try {
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      if (userInfo.data && userInfo.data?.idToken) {
+        googleAndroid(userInfo.data?.idToken)
+          .then((res: any) => {
+            //BE Error
+            console.log('BE Token', res);
+          })
+          .catch((error) => {
+            console.log(error)
+          })
+          .finally(() => {
+            setGoogleLoading(false);
+          });
+      }
+    } catch (error) {
+      console.log("error", error);
+      setGoogleLoading(false);
+    }
+  };
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: "#A1CEDC", dark: "#1D3D47" }}
@@ -59,7 +90,7 @@ export default function HomeScreen() {
         <GoogleSigninButton
           size={GoogleSigninButton.Size.Standard}
           color={GoogleSigninButton.Color.Light}
-          onPress={() => console.log("press")}
+          onPress={signIn}
           accessibilityLabel={"sign in"}
         />
       </ThemedView>
