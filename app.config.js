@@ -40,6 +40,14 @@ export default ({ config }) => ({
           iosUrlScheme: process.env.EXPO_PUBLIC_REVERSED_IOS_GOOGLE_CLIENT_ID,
         },
       ],
+      [
+        // highlight-start
+        "@rnmapbox/maps",
+        {
+          RNMapboxMapsDownloadToken: process.env.EXPO_PUBLIC_MAPBOX_SK,
+        },
+        // highlight-end
+      ],
     ],
     experiments: {
       typedRoutes: true,
