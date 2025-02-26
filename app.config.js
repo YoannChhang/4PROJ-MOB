@@ -45,8 +45,20 @@ export default ({ config }) => ({
         "@rnmapbox/maps",
         {
           RNMapboxMapsDownloadToken: process.env.EXPO_PUBLIC_MAPBOX_SK,
+          RNMapboxMapsVersion: "11.0.0",
         },
         // highlight-end
+      ],
+      [
+        "expo-location",
+        {
+          locationAlwaysAndWhenInUsePermission:
+            "Allow access to your location even when the app is closed.",
+          locationAlwaysPermission:
+            "Allow this app to access your location at all times.",
+          isAndroidForegroundServiceEnabled: true,
+          isAndroidBackgroundLocationEnabled: true,
+        },
       ],
     ],
     experiments: {

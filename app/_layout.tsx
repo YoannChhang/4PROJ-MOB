@@ -16,6 +16,7 @@ import { PaperProvider } from "react-native-paper";
 import { CustomDarkTheme, CustomLightTheme } from "@/constants/Themes";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
+import { LocationProvider } from "@/providers/LocationProvider";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -45,15 +46,18 @@ export default function RootLayout() {
     <PaperProvider
       theme={colorScheme === "dark" ? CustomDarkTheme : CustomLightTheme}
     >
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <BottomSheetModalProvider>
-          <Stack>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="+not-found" />
-          </Stack>
-          <StatusBar style="auto" />
-        </BottomSheetModalProvider>
-      </GestureHandlerRootView>
+      <LocationProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <BottomSheetModalProvider>
+            <Stack>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="map" options={{ headerShown: false }} />
+              <Stack.Screen name="+not-found" />
+            </Stack>
+            <StatusBar style="auto" />
+          </BottomSheetModalProvider>
+        </GestureHandlerRootView>
+      </LocationProvider>
     </PaperProvider>
     // </ThemeProvider>
   );
