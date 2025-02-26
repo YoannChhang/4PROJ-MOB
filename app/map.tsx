@@ -38,6 +38,9 @@ export default class App extends Component {
           <MapView
             style={styles.map}
             styleURL="mapbox://styles/mapbox/navigation-night-v1"
+            logoEnabled={false}
+            scaleBarEnabled={false}
+            attributionPosition={{ bottom: 8, left: 8 }}
           >
             {/* Center camera on user location with zoom */}
             <Camera
