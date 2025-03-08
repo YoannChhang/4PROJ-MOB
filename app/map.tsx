@@ -1,13 +1,42 @@
-import React, { Component } from "react";
+import React, { useState, useEffect } from "react";
 import { StyleSheet, View } from "react-native";
-import Mapbox, {
-  MapView,
-  Camera,
-  UserLocation,
-  LocationPuck,
-} from "@rnmapbox/maps";
+import Mapbox, { MapView, Camera, LocationPuck } from "@rnmapbox/maps";
+import MapboxSearchBar from "@/components/mapbox/MapboxSearchBar";
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_SK as string);
+
+const App = () => {
+  const [selectedLocation, setSelectedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  useEffect(() => {
+    Mapbox.setTelemetryEnabled(false);
+  }, []);
+
+  return (
+    <View style={styles.page}>
+      <View style={styles.container}>
+        <MapView
+          style={styles.map}
+          styleURL="mapbox://styles/mapbox/navigation-night-v1"
+          logoEnabled={false}
+          scaleBarEnabled={false}
+          attributionPosition={{ bottom: 8, left: 8 }}
+        >
+          <Camera
+            animationMode="flyTo"
+            followUserLocation={!selectedLocation}
+            followZoomLevel={16}
+            centerCoordinate={selectedLocation ? [selectedLocation.longitude, selectedLocation.latitude] : undefined}
+            zoomLevel={selectedLocation ? 16 : undefined}
+          />
+          <LocationPuck />
+        </MapView>
+      </View>
+
+      <MapboxSearchBar onSelectLocation={(location) => setSelectedLocation(location)} />
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   page: {
@@ -19,40 +48,10 @@ const styles = StyleSheet.create({
   container: {
     height: "100%",
     width: "100%",
-    backgroundColor: "tomato",
   },
   map: {
     flex: 1,
   },
 });
 
-export default class App extends Component {
-  componentDidMount() {
-    Mapbox.setTelemetryEnabled(false);
-  }
-
-  render() {
-    return (
-      <View style={styles.page}>
-        <View style={styles.container}>
-          <MapView
-            style={styles.map}
-            styleURL="mapbox://styles/mapbox/navigation-night-v1"
-            logoEnabled={false}
-            scaleBarEnabled={false}
-            attributionPosition={{ bottom: 8, left: 8 }}
-          >
-            {/* Center camera on user location with zoom */}
-            <Camera
-              followUserLocation
-              followZoomLevel={15} // Adjust the zoom level
-            />
-            {/* Display user location */}
-            {/* <UserLocation/>    */}
-            <LocationPuck />
-          </MapView>
-        </View>
-      </View>
-    );
-  }
-}
+export default App;
