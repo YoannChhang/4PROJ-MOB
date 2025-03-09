@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, View } from "react-native";
-import Mapbox, { MapView, Camera, LocationPuck } from "@rnmapbox/maps";
+import Mapbox, { MapView, Camera, LocationPuck, PointAnnotation } from "@rnmapbox/maps";
 import MapboxSearchBar from "@/components/mapbox/MapboxSearchBar";
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_SK as string);
@@ -30,6 +30,14 @@ const App = () => {
             zoomLevel={selectedLocation ? 16 : undefined}
           />
           <LocationPuck />
+          {selectedLocation && (
+            <PointAnnotation
+              id="selectedLocation"
+              coordinate={[selectedLocation.longitude, selectedLocation.latitude]}
+            >
+              <View />
+            </PointAnnotation>
+          )}
         </MapView>
       </View>
 
