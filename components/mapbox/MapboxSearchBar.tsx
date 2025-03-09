@@ -68,13 +68,11 @@ const MapboxSearchBar = ({
   const handleSelect = async (suggestion: SearchBoxSuggestion) => {
     try {
       setQuery(`${suggestion.name}, ${suggestion.place_formatted}`);
-      console.log("test")
       const response = await searchClient.retrieve(suggestion, {
         sessionToken: searchSession,
         language: "fr",
       });
       if (response.features) {
-        console.log("Features:", response.features);
         if (response.features[0].geometry) {
           const { coordinates } = response.features[0].geometry;
           onSelectLocation({
