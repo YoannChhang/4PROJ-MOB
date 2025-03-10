@@ -1,14 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import MapboxGL from "@rnmapbox/maps";
+import { MapboxDirectionsResponse, Route } from "@/types/mapbox";
 
-type Coordinates = [number, number];
 
 interface RouteHookReturn {
-  routeCoords: Coordinates[];
-  traveledCoords: Coordinates[];
+  selectedRoute: Route | null;
+  alternateRoutes: Route[];
+  selectedRouteCoords: GeoJSON.Position[];
+  alternateRoutesCoords: GeoJSON.Position[][];
+  traveledCoords: GeoJSON.Position[];
   loading: boolean;
   error: string | null;
-  liveUserLocation: Coordinates | null;
+  liveUserLocation: GeoJSON.Position | null;
   isNavigating: boolean;
   startNavigation: () => void;
   stopNavigation: () => void;
@@ -16,26 +19,60 @@ interface RouteHookReturn {
 
 const MAX_DEVIATION_DISTANCE = 50;
 
-const useRoute = (origin: Coordinates | null, destination: Coordinates | null): RouteHookReturn => {
-  const [routeCoords, setRouteCoords] = useState<Coordinates[]>([]);
-  const [traveledCoords, setTraveledCoords] = useState<Coordinates[]>([]);
+const useRoute = (
+  origin: GeoJSON.Position | null,
+  destination: GeoJSON.Position | null
+): RouteHookReturn => {
+  const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
+  const [alternateRoutes, setAlternateRoutes] = useState<Route[]>([]);
+  // const [selectedRouteCoords, setSelectedRouteCoords] = useState<GeoJSON.Position[]>(
+  //   []
+  // );
+  // const [alternateRoutesCoords, setAlternateRoutesCoords] = useState<GeoJSON.Position[][]>([]);
+  const [traveledCoords, setTraveledCoords] = useState<GeoJSON.Position[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [liveUserLocation, setUserLocation] = useState<Coordinates | null>(null);
+  const [liveUserLocation, setUserLocation] = useState<GeoJSON.Position | null>(
+    null
+  );
   const [isNavigating, setIsNavigating] = useState<boolean>(false);
 
-  const fetchRoute = async (start: Coordinates, end: Coordinates) => {
+  const selectedRouteCoords = useMemo(() => selectedRoute?.geometry.coordinates || [], [selectedRoute]);
+  const alternateRoutesCoords = useMemo(() => alternateRoutes.map((route) => route.geometry.coordinates), [alternateRoutes]);
+
+
+  const fetchRoute = async (start: GeoJSON.Position, end: GeoJSON.Position) => {
     setLoading(true);
     setError(null);
     try {
-      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${start.join(",")};${end.join(",")}?geometries=geojson&access_token=${process.env.EXPO_PUBLIC_MAPBOX_SK}`;
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${start.join(
+        ","
+      )};${end.join(
+        ","
+      )}?geometries=geojson&overview=full&alternatives=true&access_token=${
+        process.env.EXPO_PUBLIC_MAPBOX_SK
+      }`;
+      const tollFreeUrl = `${url}&exclude=toll`;
+
       const response = await fetch(url);
-      const data = await response.json();
-      if (data.routes.length) {
-        setRouteCoords(data.routes[0].geometry.coordinates);
-        setTraveledCoords([]); // Reset traveled route
-      } else {
+      const tollFreeResponse = await fetch(tollFreeUrl);
+
+      const data = await response.json() as MapboxDirectionsResponse;
+      const tollFreeData = await tollFreeResponse.json() as MapboxDirectionsResponse;
+
+      if (!data.routes.length && !tollFreeData.routes.length) {
         setError("No route found.");
+      }
+
+      if (data.routes.length) {
+        setSelectedRoute(data.routes[0]);
+        setAlternateRoutes(data.routes.slice(1));
+        setTraveledCoords([]); // Reset traveled route
+      }
+
+      if (tollFreeData.routes.length) {
+        // console.log("tollFreeData", tollFreeData);
+        setAlternateRoutes((prev) => [...prev, ...tollFreeData.routes]);
       }
     } catch (err) {
       setError("Failed to fetch route.");
@@ -53,26 +90,34 @@ const useRoute = (origin: Coordinates | null, destination: Coordinates | null): 
   useEffect(() => {
     if (!isNavigating) return;
 
-    const handleLocationUpdate = ({ coords }: { coords: { longitude: number; latitude: number } }) => {
-      const currentLocation: Coordinates = [coords.longitude, coords.latitude];
+    const handleLocationUpdate = ({
+      coords,
+    }: {
+      coords: { longitude: number; latitude: number };
+    }) => {
+      const currentLocation: GeoJSON.Position = [coords.longitude, coords.latitude];
       setUserLocation(currentLocation);
 
-      if (routeCoords.length > 0) {
-        const nearestPoint = routeCoords.reduce((prev, curr) =>
-          Math.hypot(curr[0] - currentLocation[0], curr[1] - currentLocation[1]) <
+      if (selectedRouteCoords.length > 0) {
+        const nearestPoint = selectedRouteCoords.reduce((prev, curr) =>
+          Math.hypot(
+            curr[0] - currentLocation[0],
+            curr[1] - currentLocation[1]
+          ) <
           Math.hypot(prev[0] - currentLocation[0], prev[1] - currentLocation[1])
             ? curr
             : prev
         );
 
-        const distanceFromRoute = Math.hypot(
-          nearestPoint[0] - currentLocation[0],
-          nearestPoint[1] - currentLocation[1]
-        ) * 111320;
+        const distanceFromRoute =
+          Math.hypot(
+            nearestPoint[0] - currentLocation[0],
+            nearestPoint[1] - currentLocation[1]
+          ) * 111320;
 
         if (distanceFromRoute < MAX_DEVIATION_DISTANCE) {
-          const index = routeCoords.indexOf(nearestPoint);
-          setTraveledCoords(routeCoords.slice(0, index + 1)); // Move traveled points to a separate array
+          const index = selectedRouteCoords.indexOf(nearestPoint);
+          setTraveledCoords(selectedRouteCoords.slice(0, index + 1)); // Move traveled points to a separate array
         } else {
           console.log("Driver deviated, recalculating route...");
           fetchRoute(currentLocation, destination!);
@@ -87,10 +132,13 @@ const useRoute = (origin: Coordinates | null, destination: Coordinates | null): 
 
     trackUserLocation();
     return () => MapboxGL.locationManager.removeListener(handleLocationUpdate);
-  }, [isNavigating, routeCoords]);
+  }, [isNavigating, selectedRouteCoords]);
 
   return {
-    routeCoords,
+    selectedRoute,
+    alternateRoutes,
+    selectedRouteCoords,
+    alternateRoutesCoords,
     traveledCoords,
     loading,
     error,

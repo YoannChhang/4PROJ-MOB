@@ -71,7 +71,8 @@ const App = () => {
   );
 
   const {
-    routeCoords,
+    selectedRouteCoords,
+    alternateRoutesCoords,
     traveledCoords,
     loading,
     error,
@@ -98,10 +99,10 @@ const App = () => {
             followUserMode={"course" as UserTrackingMode}
             followZoomLevel={isNavigating ? 14 : undefined}
             bounds={
-              routeCoords.length > 0
+              selectedRouteCoords.length > 0
                 ? {
-                    ne: routeCoords[0], // First coordinate (northeast)
-                    sw: routeCoords[routeCoords.length - 1], // Last coordinate (southwest)
+                    ne: selectedRouteCoords[0], // First coordinate (northeast)
+                    sw: selectedRouteCoords[selectedRouteCoords.length - 1], // Last coordinate (southwest)
                     paddingLeft: 50,
                     paddingRight: 50,
                     paddingTop: 50,
@@ -140,7 +141,22 @@ const App = () => {
             </PointAnnotation>
           )}
 
-          {traveledCoords.length > 0 && (
+          {!isNavigating &&
+            alternateRoutesCoords.map((route, index) => (
+              <Mapbox.ShapeSource
+                id={`routeSource-${index}`}
+                key={`routeSource-${index}`}
+                shape={{ type: "LineString", coordinates: route }}
+              >
+                <Mapbox.LineLayer
+                  id={`routeFill-${index}`}
+                  style={{ lineColor: "gray", lineWidth: 3 }}
+                  belowLayerID="routeFill"
+                />
+              </Mapbox.ShapeSource>
+            ))}
+
+          {isNavigating && traveledCoords.length > 0 && (
             <Mapbox.ShapeSource
               id="traveledRoute"
               shape={{ type: "LineString", coordinates: traveledCoords }}
@@ -153,14 +169,15 @@ const App = () => {
                   lineCap: Mapbox.LineJoin.Round,
                   lineJoin: Mapbox.LineJoin.Round,
                 }}
+                aboveLayerID="routeFill"
               />
             </Mapbox.ShapeSource>
           )}
 
-          {routeCoords.length > 0 && (
+          {selectedRouteCoords.length > 0 && (
             <Mapbox.ShapeSource
               id="routeSource"
-              shape={{ type: "LineString", coordinates: routeCoords }}
+              shape={{ type: "LineString", coordinates: selectedRouteCoords }}
             >
               <Mapbox.LineLayer
                 id="routeFill"
