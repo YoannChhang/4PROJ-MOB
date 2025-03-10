@@ -110,6 +110,7 @@ const MapboxSearchBar = ({
       opacity.value = withTiming(1, { duration: 300 });
       height.value = withTiming(60, { duration: 300 });
       padding.value = withTiming(20, { duration: 300 });
+      setQuery("");
     }
   }, [selectedLocation]);
 

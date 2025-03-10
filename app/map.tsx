@@ -9,6 +9,7 @@ import Mapbox, {
 } from "@rnmapbox/maps";
 import MapboxSearchBar from "@/components/mapbox/MapboxSearchBar";
 import useRoute from "@/hooks/useRoute";
+import ItinerarySelect from "@/components/mapbox/ItinerarySelect";
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_SK as string);
 
@@ -71,6 +72,10 @@ const Map = () => {
   );
 
   const {
+    selectedRoute,
+    setSelectedRoute,
+    alternateRoutes,
+    setAlternateRoutes,
     selectedRouteCoords,
     alternateRoutesCoords,
     traveledCoords,
@@ -127,18 +132,6 @@ const Map = () => {
             }
           />
 
-          {selectedLocation && (
-            <PointAnnotation
-              id="selectedLocation"
-              coordinate={[
-                selectedLocation.longitude,
-                selectedLocation.latitude,
-              ]}
-            >
-              <View />
-            </PointAnnotation>
-          )}
-
           {!isNavigating &&
             alternateRoutesCoords.map((route, index) => (
               <Mapbox.ShapeSource
@@ -184,6 +177,18 @@ const Map = () => {
             </Mapbox.ShapeSource>
           )}
 
+          {selectedLocation && (
+            <PointAnnotation
+              id="selectedLocation"
+              coordinate={[
+                selectedLocation.longitude,
+                selectedLocation.latitude,
+              ]}
+            >
+              <View />
+            </PointAnnotation>
+          )}
+
           <LocationPuck />
         </MapView>
       </View>
@@ -191,6 +196,17 @@ const Map = () => {
       <MapboxSearchBar
         selectedLocation={selectedLocation}
         onSelectLocation={(location) => setSelectedLocation(location)}
+      />
+
+      <ItinerarySelect
+        selectedRoute={selectedRoute}
+        alternateRoutes={alternateRoutes}
+        onBack={() => {
+          setSelectedLocation(null)
+          setSelectedRoute(null)
+          setAlternateRoutes([])
+        }}
+        // onStartNavigation={startNavigation}
       />
     </View>
   );

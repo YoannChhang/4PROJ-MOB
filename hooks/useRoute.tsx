@@ -1,11 +1,13 @@
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import MapboxGL from "@rnmapbox/maps";
 import { MapboxDirectionsResponse, Route } from "@/types/mapbox";
 
 
 interface RouteHookReturn {
   selectedRoute: Route | null;
+  setSelectedRoute: React.Dispatch<React.SetStateAction<Route | null>>;
   alternateRoutes: Route[];
+  setAlternateRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
   selectedRouteCoords: GeoJSON.Position[];
   alternateRoutesCoords: GeoJSON.Position[][];
   traveledCoords: GeoJSON.Position[];
@@ -25,10 +27,7 @@ const useRoute = (
 ): RouteHookReturn => {
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
   const [alternateRoutes, setAlternateRoutes] = useState<Route[]>([]);
-  // const [selectedRouteCoords, setSelectedRouteCoords] = useState<GeoJSON.Position[]>(
-  //   []
-  // );
-  // const [alternateRoutesCoords, setAlternateRoutesCoords] = useState<GeoJSON.Position[][]>([]);
+  
   const [traveledCoords, setTraveledCoords] = useState<GeoJSON.Position[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -136,7 +135,9 @@ const useRoute = (
 
   return {
     selectedRoute,
+    setSelectedRoute,
     alternateRoutes,
+    setAlternateRoutes,
     selectedRouteCoords,
     alternateRoutesCoords,
     traveledCoords,
