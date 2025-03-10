@@ -12,7 +12,7 @@ import useRoute from "@/hooks/useRoute";
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_SK as string);
 
-const App = () => {
+const Map = () => {
   const [selectedLocation, setSelectedLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -189,6 +189,7 @@ const App = () => {
       </View>
 
       <MapboxSearchBar
+        selectedLocation={selectedLocation}
         onSelectLocation={(location) => setSelectedLocation(location)}
       />
     </View>
@@ -211,4 +212,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default App;
+export default Map;

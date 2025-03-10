@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   TextInput,
@@ -14,6 +14,11 @@ import {
   SearchBoxSuggestion,
 } from "@mapbox/search-js-core";
 import { useLocation } from "@/providers/LocationProvider";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 
 const MAPBOX_ACCESS_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_SK as string;
 
@@ -22,8 +27,10 @@ const searchClient = new SearchBoxCore({
 });
 
 const MapboxSearchBar = ({
+  selectedLocation,
   onSelectLocation,
 }: {
+  selectedLocation: { latitude: number; longitude: number } | null;
   onSelectLocation: (
     place: { latitude: number; longitude: number } | null
   ) => void;
@@ -58,6 +65,7 @@ const MapboxSearchBar = ({
         ]),
       });
       if (response.suggestions) {
+        console.log(response.suggestions);
         setSuggestions(response.suggestions);
       }
     } catch (error) {
@@ -87,32 +95,60 @@ const MapboxSearchBar = ({
     }
   };
 
+  const opacity = useSharedValue(1);
+  const height = useSharedValue(60); // 50px is the default height
+  const padding = useSharedValue(20);
+
+  useEffect(() => {
+    if (selectedLocation) {
+      // Hide search bar with smooth animation
+      opacity.value = withTiming(0, { duration: 300 });
+      height.value = withTiming(0, { duration: 300 });
+      padding.value = withTiming(0, { duration: 300 });
+    } else {
+      // Show search bar again
+      opacity.value = withTiming(1, { duration: 300 });
+      height.value = withTiming(60, { duration: 300 });
+      padding.value = withTiming(20, { duration: 300 });
+    }
+  }, [selectedLocation]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    height: height.value,
+    padding: padding.value,
+  }));
+
   return (
-    <View style={styles.container}>
-      <TextInput
-        style={styles.input}
-        placeholder="Search for a place..."
-        value={query}
-        onChangeText={handleSearch}
-        onFocus={() => setListVisible(true)}
-      />
+    <View style={[styles.container]}>
+      <Animated.View style={animatedStyle}>
+        <TextInput
+          style={styles.input}
+          placeholder="Search for a place..."
+          value={query}
+          onChangeText={handleSearch}
+          onFocus={() => setListVisible(true)}
+        />
+      </Animated.View>
 
       {listVisible && suggestions.length > 0 && (
-        <FlatList
-          data={suggestions}
-          keyExtractor={(item, index) => index.toString()}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.suggestion}
-              onPress={() => {
-                console.log("object")
-                handleSelect(item);
-              }}
-            >
-              <Text>{`${item.name}, ${item.place_formatted}`}</Text>
-            </TouchableOpacity>
-          )}
-        />
+        <View style={styles.suggestionContainer}>
+          <FlatList
+            data={suggestions}
+            keyExtractor={(item, index) => index.toString()}
+            renderItem={({ item, index }) => (
+              <TouchableOpacity
+                style={[
+                  styles.suggestion,
+                  index === suggestions.length - 1 && styles.lastSuggestion,
+                ]}
+                onPress={() => handleSelect(item)}
+              >
+                <Text>{`${item.name}, ${item.place_formatted}`}</Text>
+              </TouchableOpacity>
+            )}
+          />
+        </View>
       )}
     </View>
   );
@@ -127,7 +163,6 @@ const styles = StyleSheet.create({
     zIndex: 10,
     backgroundColor: "white",
     borderRadius: 8,
-    padding: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
@@ -137,13 +172,21 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: "white",
     borderRadius: 6,
-    padding: 10,
     fontSize: 16,
+  },
+  suggestionContainer: {
+    maxHeight: 200,
+    backgroundColor: "white",
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
   },
   suggestion: {
     padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#ddd",
+  },
+  lastSuggestion: {
+    borderBottomWidth: 0,
   },
 });
 
