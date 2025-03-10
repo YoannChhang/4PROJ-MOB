@@ -127,8 +127,6 @@ const App = () => {
             }
           />
 
-          <LocationPuck />
-
           {selectedLocation && (
             <PointAnnotation
               id="selectedLocation"
@@ -185,6 +183,8 @@ const App = () => {
               />
             </Mapbox.ShapeSource>
           )}
+
+          <LocationPuck />
         </MapView>
       </View>
 
