@@ -2,12 +2,12 @@ import React, { useState, useEffect, useMemo } from "react";
 import MapboxGL from "@rnmapbox/maps";
 import { MapboxDirectionsResponse, Route } from "@/types/mapbox";
 
-
 interface RouteHookReturn {
   selectedRoute: Route | null;
   setSelectedRoute: React.Dispatch<React.SetStateAction<Route | null>>;
   alternateRoutes: Route[];
   setAlternateRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
+  chooseRoute: (route: Route, prevSelectedRoute: Route | null) => void;
   selectedRouteCoords: GeoJSON.Position[];
   alternateRoutesCoords: GeoJSON.Position[][];
   traveledCoords: GeoJSON.Position[];
@@ -27,7 +27,7 @@ const useRoute = (
 ): RouteHookReturn => {
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
   const [alternateRoutes, setAlternateRoutes] = useState<Route[]>([]);
-  
+
   const [traveledCoords, setTraveledCoords] = useState<GeoJSON.Position[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,9 +36,31 @@ const useRoute = (
   );
   const [isNavigating, setIsNavigating] = useState<boolean>(false);
 
-  const selectedRouteCoords = useMemo(() => selectedRoute?.geometry.coordinates || [], [selectedRoute]);
-  const alternateRoutesCoords = useMemo(() => alternateRoutes.map((route) => route.geometry.coordinates), [alternateRoutes]);
+  const selectedRouteCoords = useMemo(
+    () => selectedRoute?.geometry.coordinates || [],
+    [selectedRoute]
+  );
+  const alternateRoutesCoords = useMemo(
+    () => alternateRoutes.map((route) => route.geometry.coordinates),
+    [alternateRoutes]
+  );
 
+  const chooseRoute = (newRoute: Route, prevSelectedRoute: Route | null) => {
+    console.log(
+      `Previous Route Duration: ${prevSelectedRoute?.duration || "N/A"} seconds`
+    );
+    console.log(`New Route Duration: ${newRoute.duration} seconds`);
+
+    if (!prevSelectedRoute) {
+      setSelectedRoute(newRoute);
+      return;
+    }
+    setSelectedRoute(newRoute);
+    setAlternateRoutes((prev) => [
+      prevSelectedRoute,
+      ...prev.filter((r) => r !== newRoute),
+    ]);
+  };
 
   const fetchRoute = async (start: GeoJSON.Position, end: GeoJSON.Position) => {
     setLoading(true);
@@ -56,8 +78,9 @@ const useRoute = (
       const response = await fetch(url);
       const tollFreeResponse = await fetch(tollFreeUrl);
 
-      const data = await response.json() as MapboxDirectionsResponse;
-      const tollFreeData = await tollFreeResponse.json() as MapboxDirectionsResponse;
+      const data = (await response.json()) as MapboxDirectionsResponse;
+      const tollFreeData =
+        (await tollFreeResponse.json()) as MapboxDirectionsResponse;
 
       if (!data.routes.length && !tollFreeData.routes.length) {
         setError("No route found.");
@@ -70,8 +93,21 @@ const useRoute = (
       }
 
       if (tollFreeData.routes.length) {
-        // console.log("tollFreeData", tollFreeData);
-        setAlternateRoutes((prev) => [...prev, ...tollFreeData.routes]);
+        tollFreeData.routes.forEach((tollFreeRoute) => {
+          const isDuplicate =
+            data.routes.some(
+              (route) =>
+                JSON.stringify(route.geometry) ===
+                JSON.stringify(tollFreeRoute.geometry)
+            ) ||
+            (selectedRoute &&
+              JSON.stringify(selectedRoute.geometry) ===
+                JSON.stringify(tollFreeRoute.geometry));
+
+          if (!isDuplicate) {
+            setAlternateRoutes((prev) => [...prev, tollFreeRoute]);
+          }
+        });
       }
     } catch (err) {
       setError("Failed to fetch route.");
@@ -94,7 +130,10 @@ const useRoute = (
     }: {
       coords: { longitude: number; latitude: number };
     }) => {
-      const currentLocation: GeoJSON.Position = [coords.longitude, coords.latitude];
+      const currentLocation: GeoJSON.Position = [
+        coords.longitude,
+        coords.latitude,
+      ];
       setUserLocation(currentLocation);
 
       if (selectedRouteCoords.length > 0) {
@@ -138,6 +177,7 @@ const useRoute = (
     setSelectedRoute,
     alternateRoutes,
     setAlternateRoutes,
+    chooseRoute,
     selectedRouteCoords,
     alternateRoutesCoords,
     traveledCoords,

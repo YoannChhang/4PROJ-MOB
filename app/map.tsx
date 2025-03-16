@@ -76,6 +76,7 @@ const Map = () => {
     setSelectedRoute,
     alternateRoutes,
     setAlternateRoutes,
+    chooseRoute,
     selectedRouteCoords,
     alternateRoutesCoords,
     traveledCoords,
@@ -201,6 +202,7 @@ const Map = () => {
       <ItinerarySelect
         selectedRoute={selectedRoute}
         alternateRoutes={alternateRoutes}
+        chooseRoute={chooseRoute}
         onBack={() => {
           setSelectedLocation(null)
           setSelectedRoute(null)

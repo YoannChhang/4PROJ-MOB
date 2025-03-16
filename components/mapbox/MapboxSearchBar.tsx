@@ -65,7 +65,7 @@ const MapboxSearchBar = ({
         ]),
       });
       if (response.suggestions) {
-        console.log(response.suggestions);
+        // console.log(response.suggestions);
         setSuggestions(response.suggestions);
       }
     } catch (error) {

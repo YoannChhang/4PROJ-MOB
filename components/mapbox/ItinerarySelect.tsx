@@ -2,7 +2,6 @@ import React, { useCallback, useMemo, useRef, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import {
   BottomSheetModal,
-  BottomSheetModalProvider,
   BottomSheetView,
 } from "@gorhom/bottom-sheet";
 import { Route } from "@/types/mapbox";
@@ -11,6 +10,7 @@ import { FontAwesome5 } from "@expo/vector-icons";
 interface ItinerarySelectProps {
   selectedRoute: Route | null;
   alternateRoutes: Route[];
+  chooseRoute: (route: Route, prevSelectedRoute: Route | null) => void;
   onBack?: () => void;
   onStartNavigation?: () => void;
   onPlanLater?: () => void;
@@ -19,6 +19,7 @@ interface ItinerarySelectProps {
 const ItinerarySelect = ({
   selectedRoute,
   alternateRoutes,
+  chooseRoute,
   onBack,
   onStartNavigation,
   onPlanLater,
@@ -33,6 +34,7 @@ const ItinerarySelect = ({
       bottomSheetModalRef.current?.dismiss();
     }
   }, [selectedRoute]);
+
 
   // Format duration from seconds to hours and minutes
   const formatDuration = (seconds: number) => {
@@ -49,9 +51,10 @@ const ItinerarySelect = ({
   const renderRouteOption = useCallback((route: Route, index: number) => {
     const isMainRoute = index === 0;
     return (
-      <View
+      <TouchableOpacity
         key={index}
         style={[styles.routeOption, isMainRoute && styles.selectedRoute]}
+        onPress={() => chooseRoute(route, selectedRoute)}
       >
         <View style={styles.routeHeader}>
           <Text style={styles.routeTitle}>
@@ -66,9 +69,9 @@ const ItinerarySelect = ({
             {formatDuration(route.duration)} • {formatDistance(route.distance)}
           </Text>
         </View>
-      </View>
+      </TouchableOpacity>
     );
-  }, []);
+  }, [chooseRoute, selectedRoute]);
 
   return (
     <BottomSheetModal
