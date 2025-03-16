@@ -8,8 +8,6 @@ interface RouteHookReturn {
   alternateRoutes: Route[];
   setAlternateRoutes: React.Dispatch<React.SetStateAction<Route[]>>;
   chooseRoute: (route: Route, prevSelectedRoute: Route | null) => void;
-  selectedRouteCoords: GeoJSON.Position[];
-  alternateRoutesCoords: GeoJSON.Position[][];
   traveledCoords: GeoJSON.Position[];
   loading: boolean;
   error: string | null;
@@ -35,15 +33,6 @@ const useRoute = (
     null
   );
   const [isNavigating, setIsNavigating] = useState<boolean>(false);
-
-  const selectedRouteCoords = useMemo(
-    () => selectedRoute?.geometry.coordinates || [],
-    [selectedRoute]
-  );
-  const alternateRoutesCoords = useMemo(
-    () => alternateRoutes.map((route) => route.geometry.coordinates),
-    [alternateRoutes]
-  );
 
   const chooseRoute = (newRoute: Route, prevSelectedRoute: Route | null) => {
     console.log(
@@ -136,30 +125,47 @@ const useRoute = (
       ];
       setUserLocation(currentLocation);
 
-      if (selectedRouteCoords.length > 0) {
-        const nearestPoint = selectedRouteCoords.reduce((prev, curr) =>
-          Math.hypot(
-            curr[0] - currentLocation[0],
-            curr[1] - currentLocation[1]
+      if (!selectedRoute?.geometry.coordinates?.length) return;
+
+      // Find the nearest point on the route
+      const nearestPoint = selectedRoute.geometry.coordinates.reduce(
+        (closest, point) => {
+          return Math.hypot(
+            point[0] - currentLocation[0],
+            point[1] - currentLocation[1]
           ) <
-          Math.hypot(prev[0] - currentLocation[0], prev[1] - currentLocation[1])
-            ? curr
-            : prev
+            Math.hypot(
+              closest[0] - currentLocation[0],
+              closest[1] - currentLocation[1]
+            )
+            ? point
+            : closest;
+        }
+      );
+
+      if (!nearestPoint) return;
+
+      // Calculate distance from route in meters
+      const distanceFromRoute =
+        Math.hypot(
+          nearestPoint[0] - currentLocation[0],
+          nearestPoint[1] - currentLocation[1]
+        ) * 111320;
+
+      if (distanceFromRoute < MAX_DEVIATION_DISTANCE) {
+        const index = selectedRoute.geometry.coordinates.findIndex(
+          (point) =>
+            point[0] === nearestPoint[0] && point[1] === nearestPoint[1]
         );
 
-        const distanceFromRoute =
-          Math.hypot(
-            nearestPoint[0] - currentLocation[0],
-            nearestPoint[1] - currentLocation[1]
-          ) * 111320;
-
-        if (distanceFromRoute < MAX_DEVIATION_DISTANCE) {
-          const index = selectedRouteCoords.indexOf(nearestPoint);
-          setTraveledCoords(selectedRouteCoords.slice(0, index + 1)); // Move traveled points to a separate array
-        } else {
-          console.log("Driver deviated, recalculating route...");
-          fetchRoute(currentLocation, destination!);
+        if (index !== -1) {
+          setTraveledCoords(
+            selectedRoute.geometry.coordinates.slice(0, index + 1)
+          );
         }
+      } else {
+        console.log("Driver deviated, recalculating route...");
+        fetchRoute(currentLocation, destination!);
       }
     };
 
@@ -170,7 +176,7 @@ const useRoute = (
 
     trackUserLocation();
     return () => MapboxGL.locationManager.removeListener(handleLocationUpdate);
-  }, [isNavigating, selectedRouteCoords]);
+  }, [isNavigating, selectedRoute]);
 
   return {
     selectedRoute,
@@ -178,8 +184,6 @@ const useRoute = (
     alternateRoutes,
     setAlternateRoutes,
     chooseRoute,
-    selectedRouteCoords,
-    alternateRoutesCoords,
     traveledCoords,
     loading,
     error,

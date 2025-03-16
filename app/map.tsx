@@ -77,8 +77,6 @@ const Map = () => {
     alternateRoutes,
     setAlternateRoutes,
     chooseRoute,
-    selectedRouteCoords,
-    alternateRoutesCoords,
     traveledCoords,
     loading,
     error,
@@ -105,10 +103,10 @@ const Map = () => {
             followUserMode={"course" as UserTrackingMode}
             followZoomLevel={isNavigating ? 14 : undefined}
             bounds={
-              selectedRouteCoords.length > 0
+              selectedRoute && (selectedRoute?.geometry.coordinates ?? []).length > 0
                 ? {
-                    ne: selectedRouteCoords[0], // First coordinate (northeast)
-                    sw: selectedRouteCoords[selectedRouteCoords.length - 1], // Last coordinate (southwest)
+                    ne: selectedRoute.geometry.coordinates[0], // First coordinate (northeast)
+                    sw: selectedRoute.geometry.coordinates[selectedRoute?.geometry.coordinates.length - 1], // Last coordinate (southwest)
                     paddingLeft: 50,
                     paddingRight: 50,
                     paddingTop: 50,
@@ -134,11 +132,12 @@ const Map = () => {
           />
 
           {!isNavigating &&
-            alternateRoutesCoords.map((route, index) => (
+            alternateRoutes.map((route, index) => (
               <Mapbox.ShapeSource
                 id={`routeSource-${index}`}
                 key={`routeSource-${index}`}
-                shape={{ type: "LineString", coordinates: route }}
+                shape={{ type: "LineString", coordinates: route.geometry.coordinates }}
+                onPress={() => chooseRoute(route, selectedRoute)}
               >
                 <Mapbox.LineLayer
                   id={`routeFill-${index}`}
@@ -166,10 +165,10 @@ const Map = () => {
             </Mapbox.ShapeSource>
           )}
 
-          {selectedRouteCoords.length > 0 && (
+          {selectedRoute && (selectedRoute.geometry.coordinates.length ?? []) > 0 && (
             <Mapbox.ShapeSource
               id="routeSource"
-              shape={{ type: "LineString", coordinates: selectedRouteCoords }}
+              shape={{ type: "LineString", coordinates: selectedRoute.geometry.coordinates }}
             >
               <Mapbox.LineLayer
                 id="routeFill"
