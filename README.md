@@ -1,8 +1,35 @@
-# Welcome to your Expo app 👋
+# Navigation App with Mapbox 🗺️
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A React Native navigation app using Mapbox for real-time routing and navigation.
 
-## Get started
+## Prerequisites
+
+- Node.js (v18 or higher)
+- Java Development Kit (JDK) 17
+- Android Studio
+- Android SDK
+- A Mapbox account and access token
+
+## Important Setup Notes
+
+1. **Project Path Length**: Ensure your project path is relatively short to avoid Windows path length issues
+
+   ```
+   ❌ C:\Users\Username\Documents\Projects\React Native\Navigation\MyApp
+   ✅ C:\Dev\NavApp
+   ```
+
+2. **Environment Variables**: Create a `.env` file in the root directory.
+
+   ```
+   EXPO_PUBLIC_API_URL=api_url
+   EXPO_PUBLIC_IOS_GOOGLE_CLIENT_ID=web_client_id
+   EXPO_PUBLIC_REVERSED_IOS_GOOGLE_CLIENT_ID=reversed_ios_client_id
+   EXPO_PUBLIC_ANDROID_GOOGLE_CLIENT_ID=web_client_id
+   EXPO_PUBLIC_MAPBOX_SK=secret_mapbox
+   ```
+
+## Installation
 
 1. Install dependencies
 
@@ -10,41 +37,49 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npm install
    ```
 
-2. Start the app
+2. Generate native code for Android/iOS
 
    ```bash
-    npx expo start
+   npx expo prebuild --clean
    ```
 
-In the output, you'll find options to open the app in a
+3. Start the development build
+   ```bash
+   npm run android
+   ```
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Troubleshooting
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### Common Issues
 
-## Get a fresh project
+- **Build Failures**: If you encounter build failures, try:
 
-When you're ready, run:
+  ```bash
+  cd android
+  ./gradlew clean
+  cd ..
+  npm run android
+  ```
 
-```bash
-npm run reset-project
-```
+- **Path Length Issues**: If you see CMake errors during build, it is most likely due to the path length:
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+  1. Move the project to a shorter path
+  2. Clean and rebuild
 
-## Learn more
+- **Environment Variables**: If Mapbox features aren't working:
+  1. Verify your `.env` file exists
+  2. Check that the Mapbox token is valid
+  3. Rebuild the app
 
-To learn more about developing your project with Expo, look at the following resources:
+## Development
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+The app uses Expo for development. Key directories:
 
-## Join the community
+- `/app`: Main application code
+- `/components`: Reusable React components
+- `/hooks`: Custom React hooks
+- `/types`: TypeScript type definitions
 
-Join our community of developers creating universal apps.
+## License
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+This project is MIT licensed.

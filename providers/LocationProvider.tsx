@@ -1,12 +1,14 @@
 import React, { createContext, useEffect, useState, useContext } from "react";
 import { View, Text, Button, StyleSheet } from "react-native";
 import * as Location from "expo-location";
+import { SessionToken, SessionTokenLike } from "@mapbox/search-js-core";
 
 interface LocationContextType {
   hasForegroundPermission: boolean;
   hasBackgroundPermission: boolean;
   requestForegroundPermission: () => Promise<void>;
   requestBackgroundPermission: () => Promise<void>;
+  searchSession: SessionTokenLike;
 }
 
 const LocationContext = createContext<LocationContextType | undefined>(
@@ -21,17 +23,19 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({
   const [hasBackgroundPermission, setHasBackgroundPermission] =
     useState<boolean>(false);
 
+  const searchSession = new SessionToken();
+
   useEffect(() => {
     checkPermissions();
   }, []);
 
-  useEffect(() => {
-    console.log("Foreground Permission: ", hasForegroundPermission);
-  }, [hasForegroundPermission]);
+  // useEffect(() => {
+  //   console.log("Foreground Permission: ", hasForegroundPermission);
+  // }, [hasForegroundPermission]);
 
-  useEffect(() => {
-    console.log("Background Permission: ", hasBackgroundPermission);
-  }, [hasBackgroundPermission]);
+  // useEffect(() => {
+  //   console.log("Background Permission: ", hasBackgroundPermission);
+  // }, [hasBackgroundPermission]);
 
   const checkPermissions = async () => {
     const { status: foregroundStatus } =
@@ -60,6 +64,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({
         hasBackgroundPermission,
         requestForegroundPermission,
         requestBackgroundPermission,
+        searchSession,
       }}
     >
       {!hasForegroundPermission || !hasBackgroundPermission ? (
