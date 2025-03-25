@@ -11,12 +11,12 @@ import { useEffect } from "react";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/hooks/useColorScheme";
-import { configureGoogleSignIn } from "@/components/googleAuth/configureGoogle";
 import { PaperProvider } from "react-native-paper";
 import { CustomDarkTheme, CustomLightTheme } from "@/constants/Themes";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { LocationProvider } from "@/providers/LocationProvider";
+import { UserProvider } from "@/providers/UserProvider";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -27,9 +27,6 @@ export default function RootLayout() {
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
 
-  useEffect(() => {
-    configureGoogleSignIn();
-  }, []);
 
   useEffect(() => {
     if (loaded) {
@@ -46,18 +43,20 @@ export default function RootLayout() {
     <PaperProvider
       theme={colorScheme === "dark" ? CustomDarkTheme : CustomLightTheme}
     >
-      <LocationProvider>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <BottomSheetModalProvider>
-            <Stack>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="map" options={{ headerShown: false }} />
-              <Stack.Screen name="+not-found" />
-            </Stack>
-            <StatusBar style="auto" />
-          </BottomSheetModalProvider>
-        </GestureHandlerRootView>
-      </LocationProvider>
+      <UserProvider>
+        <LocationProvider>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <BottomSheetModalProvider>
+              <Stack>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="map" options={{ headerShown: false }} />
+                <Stack.Screen name="+not-found" />
+              </Stack>
+              <StatusBar style="auto" />
+            </BottomSheetModalProvider>
+          </GestureHandlerRootView>
+        </LocationProvider>
+      </UserProvider>
     </PaperProvider>
     // </ThemeProvider>
   );

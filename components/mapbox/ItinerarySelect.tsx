@@ -58,15 +58,12 @@ const ItinerarySelect = ({
       >
         <View style={styles.routeHeader}>
           <Text style={styles.routeTitle}>
-            {isMainRoute ? "Fastest Route" : `Alternative ${index}`}
+            {formatDuration(route.duration)}
           </Text>
-          {route.weight_name === "toll" && (
-            <Text style={styles.tollBadge}>Toll</Text>
-          )}
         </View>
         <View style={styles.routeDetails}>
           <Text style={styles.routeInfo}>
-            {formatDuration(route.duration)} • {formatDistance(route.distance)}
+            {route.weight_name} • {formatDistance(route.distance)}
           </Text>
         </View>
       </TouchableOpacity>

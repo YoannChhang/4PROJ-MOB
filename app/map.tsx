@@ -1,5 +1,10 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { StyleSheet, View } from "react-native";
+import SettingsButton from "@/components/settings/SettingsButton";
+import SettingsModal from "@/components/settings/SettingsModal";
+import { RoutingPreference } from "@/components/settings/RoutingPreferences";
+import { useUser } from "@/providers/UserProvider";
+import { PreferredTravelMethodEnum } from "@/types/api";
 import Mapbox, {
   MapView,
   Camera,
@@ -24,6 +29,11 @@ const Map = () => {
     latitude: number;
     longitude: number;
   } | null>(null);
+  
+  // Settings modal state
+  const [isSettingsVisible, setIsSettingsVisible] = useState(false);
+  const [routingPreferences, setRoutingPreferences] = useState<RoutingPreference[]>([]);
+  const { userData } = useUser();
 
   const fetchUserLocation = async () => {
     try {
@@ -84,7 +94,46 @@ const Map = () => {
     isNavigating,
     startNavigation,
     stopNavigation,
-  } = useRoute(origin, destination);
+  } = useRoute(origin, destination, { preferences: routingPreferences });
+
+  // Initialize routing preferences from user data when it becomes available
+  useEffect(() => {
+    if (userData?.preferences) {
+      const prefs: RoutingPreference[] = [
+        { 
+          id: 'avoidTolls', 
+          label: 'Avoid Tolls', 
+          enabled: userData.preferences.avoid_tolls || false 
+        },
+        { 
+          id: 'preferHighways', 
+          label: 'Prefer Highways', 
+          enabled: userData.preferences.preferred_travel_method === PreferredTravelMethodEnum.DRIVING || true 
+        },
+        { 
+          id: 'avoidFerries', 
+          label: 'Avoid Ferries', 
+          enabled: userData.preferences.avoid_ferries || false 
+        },
+      ];
+      setRoutingPreferences(prefs);
+    }
+  }, [userData]);
+
+  // Handle routing preference changes
+  const handlePreferenceChange = useCallback((preferences: RoutingPreference[]) => {
+    setRoutingPreferences(preferences);
+    // Recalculate route if there's an origin and destination
+    if (origin && destination) {
+      // This will trigger a route recalculation because the route hook will detect the change
+      fetchUserLocation();
+    }
+  }, [origin, destination]);
+
+  // Toggle settings modal
+  const toggleSettings = useCallback(() => {
+    setIsSettingsVisible(prev => !prev);
+  }, []);
 
   return (
     <View style={styles.page}>
@@ -208,6 +257,14 @@ const Map = () => {
           setAlternateRoutes([])
         }}
         // onStartNavigation={startNavigation}
+      />
+      
+      {/* Settings Button and Modal */}
+      <SettingsButton onPress={toggleSettings} />
+      <SettingsModal 
+        isVisible={isSettingsVisible}
+        onClose={() => setIsSettingsVisible(false)}
+        onPreferenceChange={handlePreferenceChange}
       />
     </View>
   );
