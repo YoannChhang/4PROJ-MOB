@@ -7,7 +7,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Colors } from '@/constants/Colors';
 import { useUser } from '@/providers/UserProvider';
 import { updateUserPreferences } from '@/services/useService';
-import { UserPreferences, PreferredTravelMethodEnum } from '@/types/api';
+import { UserPreferences } from '@/types/api';
 
 interface SettingsModalProps {
   isVisible: boolean;
@@ -31,9 +31,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   // Default routing preferences
   const [preferences, setPreferences] = useState<RoutingPreference[]>([
     { id: 'avoid_tolls', label: 'Avoid Tolls', enabled: userData?.preferences?.avoid_tolls || false },
-    { id: 'prefer_highways', label: 'Prefer Highways', enabled: userData?.preferences?.preferred_travel_method === PreferredTravelMethodEnum.DRIVING || true },
-    { id: 'avoid_ferries', label: 'Avoid Ferries', enabled: userData?.preferences?.avoid_ferries || false },
-    { id: 'avoid_high_traffic', label: 'Avoid High Traffic Areas', enabled: true },
+    { id: 'avoid_highways', label: 'Avoid Highways', enabled: userData?.preferences?.avoid_highways || false },
+    // { id: 'avoid_ferries', label: 'Avoid Ferries', enabled: userData?.preferences?.avoid_ferries || false },
+    { id: 'avoid_unpaved', label: 'Avoid Unpaved Roads', enabled: userData?.preferences?.avoid_unpaved || false },
   ]);
 
   // Update preferences when user data changes
@@ -41,9 +41,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     if (userData?.preferences) {
       setPreferences([
         { id: 'avoid_tolls', label: 'Avoid Tolls', enabled: userData.preferences.avoid_tolls || false },
-        { id: 'prefer_highways', label: 'Prefer Highways', enabled: userData.preferences.preferred_travel_method === PreferredTravelMethodEnum.DRIVING || true },
-        { id: 'avoid_ferries', label: 'Avoid Ferries', enabled: userData.preferences.avoid_ferries || false },
-        { id: 'avoid_high_traffic', label: 'Avoid High Traffic Areas', enabled: true },
+        { id: 'avoid_highways', label: 'Avoid Highways', enabled: userData.preferences.avoid_highways || false },
+        // { id: 'avoid_ferries', label: 'Avoid Ferries', enabled: userData.preferences.avoid_ferries || false },
+        { id: 'avoid_unpaved', label: 'Avoid Unpaved Roads', enabled: userData.preferences.avoid_unpaved || false },
       ]);
     }
   }, [userData]);
@@ -65,10 +65,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         // Convert from UI preferences to API preferences
         const apiPreferences: UserPreferences = {
           avoid_tolls: updated.find(p => p.id === 'avoid_tolls')?.enabled,
-          avoid_ferries: updated.find(p => p.id === 'avoid_ferries')?.enabled,
-          preferred_travel_method: updated.find(p => p.id === 'prefer_highways')?.enabled 
-            ? PreferredTravelMethodEnum.DRIVING 
-            : PreferredTravelMethodEnum.WALKING,
+          // avoid_ferries: updated.find(p => p.id === 'avoid_ferries')?.enabled,
+          avoid_highways: updated.find(p => p.id === 'avoid_highways')?.enabled,
+          avoid_unpaved: updated.find(p => p.id === 'avoid_unpaved')?.enabled,
         };
         
         // Update preferences through API

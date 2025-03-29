@@ -4,7 +4,6 @@ import SettingsButton from "@/components/settings/SettingsButton";
 import SettingsModal from "@/components/settings/SettingsModal";
 import { RoutingPreference } from "@/components/settings/RoutingPreferences";
 import { useUser } from "@/providers/UserProvider";
-import { PreferredTravelMethodEnum } from "@/types/api";
 import Mapbox, {
   MapView,
   Camera,
@@ -105,16 +104,21 @@ const Map = () => {
           label: 'Avoid Tolls', 
           enabled: userData.preferences.avoid_tolls || false 
         },
-        { 
-          id: 'preferHighways', 
-          label: 'Prefer Highways', 
-          enabled: userData.preferences.preferred_travel_method === PreferredTravelMethodEnum.DRIVING || true 
+        {
+          id: 'avoidHighways',
+          label: 'Avoid Highways',
+          enabled: userData.preferences.avoid_highways || false,
         },
-        { 
-          id: 'avoidFerries', 
-          label: 'Avoid Ferries', 
-          enabled: userData.preferences.avoid_ferries || false 
-        },
+        // { 
+        //   id: 'avoidFerries', 
+        //   label: 'Avoid Ferries', 
+        //   enabled: userData.preferences.avoid_ferries || false 
+        // },
+        {
+          id: 'avoidUnpaved',
+          label: 'Avoid Unpaved Roads',
+          enabled: userData.preferences.avoid_unpaved || false,
+        }
       ];
       setRoutingPreferences(prefs);
     }

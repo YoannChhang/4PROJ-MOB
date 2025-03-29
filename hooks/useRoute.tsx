@@ -4,7 +4,6 @@ import MapboxGL from "@rnmapbox/maps";
 import { MapboxDirectionsResponse, Route } from "@/types/mapbox";
 import { RoutingPreference } from "@/components/settings/RoutingPreferences";
 import { useUser } from "@/providers/UserProvider";
-import { PreferredTravelMethodEnum } from "@/types/api";
 
 interface RouteHookReturn {
   selectedRoute: Route | null;
@@ -34,54 +33,61 @@ const useRoute = (
 ): RouteHookReturn => {
   // Get user data and preferences from context
   const { userData } = useUser();
-  
+
   // Combine options preferences with user preferences
   const userPrefs = userData?.preferences;
   const optionsPrefs = options?.preferences || [];
-  
+
   // Map from API preferences to UI preferences for the routing system
   const mappedUserPrefs: RoutingPreference[] = useMemo(() => {
     if (!userPrefs) return [];
-    
+
     return [
-      { 
-        id: 'avoidTolls', 
-        label: 'Avoid Tolls', 
-        enabled: userPrefs.avoid_tolls || false 
+      {
+        id: "avoidTolls",
+        label: "Avoid Tolls",
+        enabled: userPrefs.avoid_tolls || false,
       },
-      { 
-        id: 'preferHighways', 
-        label: 'Prefer Highways', 
-        enabled: userPrefs.preferred_travel_method === PreferredTravelMethodEnum.DRIVING || true 
+      {
+        id: "avoidHighways",
+        label: "Avoid Motorways",
+        enabled: userPrefs.avoid_highways || false,
       },
-      { 
-        id: 'avoidFerries', 
-        label: 'Avoid Ferries', 
-        enabled: userPrefs.avoid_ferries || false 
+      // {
+      //   id: "avoidFerries",
+      //   label: "Avoid Ferries",
+      //   enabled: userPrefs.avoid_ferries || false,
+      // },
+      {
+        id: "avoidUnpaved",
+        label: "Avoid Unpaved Roads",
+        enabled: userPrefs.avoid_unpaved || false,
       },
     ];
   }, [userPrefs]);
-  
+
   // Combine preferences, with options taking precedence
   const prefMap = new Map<string, boolean>();
-  
+
   // First add user preferences
-  mappedUserPrefs.forEach(pref => {
+  mappedUserPrefs.forEach((pref) => {
     prefMap.set(pref.id, pref.enabled);
   });
-  
+
   // Then override with options preferences
-  optionsPrefs.forEach(pref => {
+  optionsPrefs.forEach((pref) => {
     prefMap.set(pref.id, pref.enabled);
   });
-  
+
   // Convert back to array
   const preferences = Array.from(prefMap).map(([id, enabled]) => {
-    const pref = mappedUserPrefs.find(p => p.id === id) || optionsPrefs.find(p => p.id === id);
+    const pref =
+      mappedUserPrefs.find((p) => p.id === id) ||
+      optionsPrefs.find((p) => p.id === id);
     return {
       id,
       label: pref?.label || id,
-      enabled
+      enabled,
     };
   });
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
@@ -126,95 +132,127 @@ const useRoute = (
       }`;
 
       // console.log(baseUrl);
-      
+
       // Apply routing preferences to create different URLs
       let exclude: string[] = [];
-      let urls: { url: string; isPreferred: boolean; label: string }[] = [];
-      
+      let urls: { url: string; label: string }[] = [];
+
       // Check for routing preferences
-      const avoidTolls = preferences.find(p => p.id === 'avoidTolls')?.enabled || false;
-      const avoidMotorways = preferences.find(p => p.id === 'avoidMotorways')?.enabled || true;
-      const avoidFerries = preferences.find(p => p.id === 'avoidFerries')?.enabled || false;
-      const avoidUnpaved = preferences.find(p => p.id === 'avoidHighTraffic')?.enabled || false;
-      
+      const avoidTolls =
+        preferences.find((p) => p.id === "avoidTolls")?.enabled || false;
+      const avoidHighways =
+        preferences.find((p) => p.id === "avoidHighways")?.enabled || false;
+      // const avoidFerries =
+      //   preferences.find((p) => p.id === "avoidFerries")?.enabled || false;
+      const avoidUnpaved =
+        preferences.find((p) => p.id === "avoidUnpaved")?.enabled || false;
+
       // Default URL
-      urls.push({ url: baseUrl, isPreferred: true, label: 'Default' });
-      
+      // urls.push({ url: baseUrl, isPreferred: !Boolean(avoidTolls || avoidHighways || avoidUnpaved), label: "Default" });
+
       // Apply preferences
-      if (avoidTolls) exclude.push('toll');
-      
+      if (avoidTolls) exclude.push("toll");
+
       // if (avoidFerries) exclude.push('ferry');
 
-      if (avoidMotorways) exclude.push('motorway');
+      if (avoidHighways) exclude.push("motorway");
 
-      if (avoidUnpaved) exclude.push('unpaved');
-      
+      if (avoidUnpaved) exclude.push("unpaved");
+
       // Add URL with exclusions if any
       if (exclude.length > 0) {
-        const exclusionUrl = `${baseUrl}&exclude=${exclude.join(',')}`;
-        urls.push({ 
-          url: exclusionUrl, 
-          isPreferred: Boolean(avoidTolls || avoidMotorways || avoidUnpaved), 
-          label: `No ${exclude.join(' or ')}`
+        const excludeUrl = `${baseUrl}&exclude=${exclude.join(",")}`;
+        urls.push({
+          url: excludeUrl,
+          label: `Default`,
+        });
+      } else {
+        urls.push({
+          url: baseUrl,
+          label: `Default`,
         });
       }
-      
+
+      const avoidHighwaysUrl = `${baseUrl}&exclude=motorway`;
+      const avoidTollsUrl = `${baseUrl}&exclude=toll`;
+      const avoidUnpavedUrl = `${baseUrl}&exclude=unpaved`;
+
+      urls.push({
+        url: avoidHighwaysUrl,
+        label: `No highways`,
+      });
+
+      urls.push({
+        url: avoidTollsUrl,
+        label: `No tolls`,
+      });
+
+      urls.push({
+        url: avoidUnpavedUrl,
+        label: `No unpaved`,
+      });
+
       // Fetch routes for all URLs
       const responses = await Promise.all(urls.map(({ url }) => fetch(url)));
       const dataResults = await Promise.all(
-        responses.map(response => response.json() as Promise<MapboxDirectionsResponse>)
+        responses.map(
+          (response) => response.json() as Promise<MapboxDirectionsResponse>
+        )
       );
-      
+
+      const defaultRouteResponse = dataResults.shift();
+
       // Process results
-      let allRoutes: Route[] = [];
-      let mainRoute: Route | null = null;
-      let altRoutes: Route[] = [];
-      
+      let allRoutes: Route[] =
+        defaultRouteResponse?.routes.map((route) => {
+          return { ...route, is_prefered: true, weight_name: "" };
+        }) ?? [];
+
       // Process all routes from different URL requests
       dataResults.forEach((data, index) => {
         if (!data.routes.length) return;
-        
-        const urlInfo = urls[index];
-        
+
+        const urlInfo = urls[index + 1];
+
         // Add routes to pool, marking preferred ones
-        data.routes.forEach(route => {
-          // For routes with preferences, add a custom property
-          if (urlInfo.isPreferred && !mainRoute) {
-            route.weight_name = urlInfo.label.toLowerCase();
-            mainRoute = route;
+        data.routes.forEach((route) => {
+          const foundIndex = allRoutes.findIndex(
+            (existingRoute) =>
+              JSON.stringify(existingRoute.geometry) ===
+              JSON.stringify(route.geometry)
+          );
+
+          if (foundIndex === -1) {
+            route.weight_name = urlInfo.label;
+            route.is_prefered = false;
+            allRoutes.push(route);
           } else {
-            // Add to alternates, avoiding duplicates
-            const isDuplicate = allRoutes.some(
-              existingRoute => 
-                JSON.stringify(existingRoute.geometry) === JSON.stringify(route.geometry)
-            );
-            
-            if (!isDuplicate) {
-              route.weight_name = urlInfo.label.toLowerCase();
-              altRoutes.push(route);
-              allRoutes.push(route);
-            }
+            const foundRoute = allRoutes[foundIndex];
+            allRoutes[foundIndex] = {
+              ...foundRoute,
+              weight_name: foundRoute.weight_name ? `${urlInfo.label}, ${foundRoute.weight_name}` : urlInfo.label,
+            };
           }
         });
       });
 
+      allRoutes.sort((a, b) => {
+        if (a.is_prefered !== b.is_prefered) {
+          return a.is_prefered ? -1 : 1; // isPrefered: true first
+        }
+        return a.weight - b.weight; // then by ascending weight
+      })
+
       // If no routes found from any request
-      if (!mainRoute && altRoutes.length === 0) {
+      if (allRoutes.length === 0) {
         setError("No route found.");
         return;
-      }
-      
-      // If we have a main route (from preferred options)
-      if (mainRoute) {
-        // console.log(mainRoute);
-        setSelectedRoute(mainRoute);
-        setAlternateRoutes(altRoutes);
-      } else if (altRoutes.length > 0) {
+      } else if (allRoutes.length > 0) {
         // If no main route but we have alternates
-        setSelectedRoute(altRoutes[0]);
-        setAlternateRoutes(altRoutes.slice(1));
+        setSelectedRoute(allRoutes[0]);
+        setAlternateRoutes(allRoutes.slice(1));
       }
-      
+
       setTraveledCoords([]); // Reset traveled route
     } catch (err) {
       setError("Failed to fetch route.");

@@ -8,6 +8,7 @@ export interface MapboxDirectionsResponse {
 export interface Route {
   weight_typical: number;
   duration_typical: number;
+  is_prefered: boolean;
   weight_name: string;
   weight: number;
   duration: number;

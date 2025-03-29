@@ -7,12 +7,12 @@ export enum RoleEnum {
 }
 
 // Travel method preferences
-export enum PreferredTravelMethodEnum {
-  DRIVING = 'driving',
-  WALKING = 'walking',
-  CYCLING = 'cycling',
-  PUBLIC_TRANSPORT = 'public_transport',
-}
+// export enum PreferredTravelMethodEnum {
+//   DRIVING = 'driving',
+//   WALKING = 'walking',
+//   CYCLING = 'cycling',
+//   PUBLIC_TRANSPORT = 'public_transport',
+// }
 
 // Language preferences
 export enum PreferredLanguageEnum {
@@ -23,10 +23,11 @@ export enum PreferredLanguageEnum {
 // User preferences
 export interface UserPreferences {
   preferred_language?: PreferredLanguageEnum;
-  preferred_travel_method?: PreferredTravelMethodEnum;
+  // preferred_travel_method?: PreferredTravelMethodEnum;
   avoid_tolls?: boolean;
   avoid_highways?: boolean;
-  avoid_ferries?: boolean;
+  // avoid_ferries?: boolean;
+  avoid_unpaved?: boolean;
 }
 
 // Enhanced User interface
