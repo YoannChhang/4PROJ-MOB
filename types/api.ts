@@ -36,7 +36,7 @@ export interface User {
   name?: string;
   email: string;
   role?: RoleEnum;
-  preferences?: UserPreferences;
+  preferences: UserPreferences;
   photo?: string | null;
 }
 

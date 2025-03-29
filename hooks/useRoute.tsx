@@ -28,68 +28,18 @@ interface RouteOptions {
 
 const useRoute = (
   origin: GeoJSON.Position | null,
-  destination: GeoJSON.Position | null,
-  options?: RouteOptions
+  destination: GeoJSON.Position | null
 ): RouteHookReturn => {
   // Get user data and preferences from context
   const { userData } = useUser();
 
-  // Combine options preferences with user preferences
-  const userPrefs = userData?.preferences;
-  const optionsPrefs = options?.preferences || [];
+  const preferences = useMemo(() => {
+    return Object.entries(userData.preferences).map(([key, value]) => ({
+      id: key,
+      enabled: value,
+    }));
+  }, [userData.preferences]);
 
-  // Map from API preferences to UI preferences for the routing system
-  const mappedUserPrefs: RoutingPreference[] = useMemo(() => {
-    if (!userPrefs) return [];
-
-    return [
-      {
-        id: "avoidTolls",
-        label: "Avoid Tolls",
-        enabled: userPrefs.avoid_tolls || false,
-      },
-      {
-        id: "avoidHighways",
-        label: "Avoid Motorways",
-        enabled: userPrefs.avoid_highways || false,
-      },
-      // {
-      //   id: "avoidFerries",
-      //   label: "Avoid Ferries",
-      //   enabled: userPrefs.avoid_ferries || false,
-      // },
-      {
-        id: "avoidUnpaved",
-        label: "Avoid Unpaved Roads",
-        enabled: userPrefs.avoid_unpaved || false,
-      },
-    ];
-  }, [userPrefs]);
-
-  // Combine preferences, with options taking precedence
-  const prefMap = new Map<string, boolean>();
-
-  // First add user preferences
-  mappedUserPrefs.forEach((pref) => {
-    prefMap.set(pref.id, pref.enabled);
-  });
-
-  // Then override with options preferences
-  optionsPrefs.forEach((pref) => {
-    prefMap.set(pref.id, pref.enabled);
-  });
-
-  // Convert back to array
-  const preferences = Array.from(prefMap).map(([id, enabled]) => {
-    const pref =
-      mappedUserPrefs.find((p) => p.id === id) ||
-      optionsPrefs.find((p) => p.id === id);
-    return {
-      id,
-      label: pref?.label || id,
-      enabled,
-    };
-  });
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
   const [alternateRoutes, setAlternateRoutes] = useState<Route[]>([]);
 
@@ -230,7 +180,9 @@ const useRoute = (
             const foundRoute = allRoutes[foundIndex];
             allRoutes[foundIndex] = {
               ...foundRoute,
-              weight_name: foundRoute.weight_name ? `${urlInfo.label}, ${foundRoute.weight_name}` : urlInfo.label,
+              weight_name: foundRoute.weight_name
+                ? `${urlInfo.label}, ${foundRoute.weight_name}`
+                : urlInfo.label,
             };
           }
         });
@@ -241,7 +193,7 @@ const useRoute = (
           return a.is_prefered ? -1 : 1; // isPrefered: true first
         }
         return a.weight - b.weight; // then by ascending weight
-      })
+      });
 
       // If no routes found from any request
       if (allRoutes.length === 0) {

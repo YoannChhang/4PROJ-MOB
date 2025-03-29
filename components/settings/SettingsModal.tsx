@@ -1,88 +1,108 @@
-import React, { useRef, useCallback, useMemo, useState, useEffect } from 'react';
-import { View, StyleSheet, BackHandler } from 'react-native';
-import { BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
-import ProfileSection from './ProfileSection';
-import RoutingPreferences, { RoutingPreference } from './RoutingPreferences';
-import { useColorScheme } from '@/hooks/useColorScheme';
-import { Colors } from '@/constants/Colors';
-import { useUser } from '@/providers/UserProvider';
-import { updateUserPreferences } from '@/services/useService';
-import { UserPreferences } from '@/types/api';
+import React, {
+  useRef,
+  useCallback,
+  useMemo,
+  useState,
+  useEffect,
+} from "react";
+import { View, StyleSheet, BackHandler } from "react-native";
+import { BottomSheetModal, BottomSheetView } from "@gorhom/bottom-sheet";
+import ProfileSection from "./ProfileSection";
+import RoutingPreferences, { RoutingPreference } from "./RoutingPreferences";
+import { useColorScheme } from "@/hooks/useColorScheme";
+import { Colors } from "@/constants/Colors";
+import { useUser } from "@/providers/UserProvider";
+import { updateUserPreferences } from "@/services/useService";
+import { UserPreferences } from "@/types/api";
 
 interface SettingsModalProps {
   isVisible: boolean;
   onClose: () => void;
-  onPreferenceChange?: (preferences: RoutingPreference[]) => void;
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({
   isVisible,
   onClose,
-  onPreferenceChange,
 }) => {
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
-  const colorScheme = useColorScheme() ?? 'light';
-  
+  const colorScheme = useColorScheme() ?? "light";
+
   // Full screen (100%) and a small peek value for smooth opening
-  const snapPoints = useMemo(() => ['100%'], []);
-  
-  const { userData, isSignedIn } = useUser();
+  const snapPoints = useMemo(() => ["100%"], []);
+
+  const { userData, setUserData, isSignedIn } = useUser();
 
   // Default routing preferences
   const [preferences, setPreferences] = useState<RoutingPreference[]>([
-    { id: 'avoid_tolls', label: 'Avoid Tolls', enabled: userData?.preferences?.avoid_tolls || false },
-    { id: 'avoid_highways', label: 'Avoid Highways', enabled: userData?.preferences?.avoid_highways || false },
+    {
+      id: "avoid_tolls",
+      label: "Avoid Tolls",
+      enabled: userData?.preferences?.avoid_tolls || false,
+    },
+    {
+      id: "avoid_highways",
+      label: "Avoid Highways",
+      enabled: userData?.preferences?.avoid_highways || false,
+    },
     // { id: 'avoid_ferries', label: 'Avoid Ferries', enabled: userData?.preferences?.avoid_ferries || false },
-    { id: 'avoid_unpaved', label: 'Avoid Unpaved Roads', enabled: userData?.preferences?.avoid_unpaved || false },
+    {
+      id: "avoid_unpaved",
+      label: "Avoid Unpaved Roads",
+      enabled: userData?.preferences?.avoid_unpaved || false,
+    },
   ]);
 
   // Update preferences when user data changes
   useEffect(() => {
-    if (userData?.preferences) {
-      setPreferences([
-        { id: 'avoid_tolls', label: 'Avoid Tolls', enabled: userData.preferences.avoid_tolls || false },
-        { id: 'avoid_highways', label: 'Avoid Highways', enabled: userData.preferences.avoid_highways || false },
-        // { id: 'avoid_ferries', label: 'Avoid Ferries', enabled: userData.preferences.avoid_ferries || false },
-        { id: 'avoid_unpaved', label: 'Avoid Unpaved Roads', enabled: userData.preferences.avoid_unpaved || false },
-      ]);
-    }
-  }, [userData]);
+    setPreferences([
+      {
+        id: "avoid_tolls",
+        label: "Avoid Tolls",
+        enabled: userData.preferences.avoid_tolls || false,
+      },
+      {
+        id: "avoid_highways",
+        label: "Avoid Highways",
+        enabled: userData.preferences.avoid_highways || false,
+      },
+      // { id: 'avoid_ferries', label: 'Avoid Ferries', enabled: userData.preferences.avoid_ferries || false },
+      {
+        id: "avoid_unpaved",
+        label: "Avoid Unpaved Roads",
+        enabled: userData.preferences.avoid_unpaved || false,
+      },
+    ]);
+  }, [userData.preferences]);
 
   // Handle preference toggles
-  const handleTogglePreference = useCallback((id: string, value: boolean) => {
-    setPreferences(prev => {
-      const updated = prev.map(pref => 
-        pref.id === id ? { ...pref, enabled: value } : pref
-      );
-      
-      // Call the callback with updated preferences if provided
-      if (onPreferenceChange) {
-        onPreferenceChange(updated);
-      }
-      
-      // Save preferences to backend if user is logged in
-      if (isSignedIn && userData) {
-        // Convert from UI preferences to API preferences
-        const apiPreferences: UserPreferences = {
-          avoid_tolls: updated.find(p => p.id === 'avoid_tolls')?.enabled,
-          // avoid_ferries: updated.find(p => p.id === 'avoid_ferries')?.enabled,
-          avoid_highways: updated.find(p => p.id === 'avoid_highways')?.enabled,
-          avoid_unpaved: updated.find(p => p.id === 'avoid_unpaved')?.enabled,
-        };
-        
-        // Update preferences through API
-        updateUserPreferences(apiPreferences)
-          .then(response => {
-            console.log('Preferences updated successfully');
-          })
-          .catch(error => {
-            console.error('Error updating preferences:', error);
-          });
-      }
-      
-      return updated;
-    });
-  }, [onPreferenceChange, isSignedIn, userData]);
+  const handleTogglePreference = useCallback(
+    (id: string, value: boolean) => {
+      setUserData((prev) => {
+
+        const newPref = { ...prev.preferences, [id]: value}
+
+        const updated = {
+          ...prev,
+          preferences: newPref
+        }
+
+        // Save preferences to backend if user is logged in
+        if (isSignedIn) {
+          // Update preferences through API
+          updateUserPreferences(newPref)
+            .then((response) => {
+              console.log("Preferences updated successfully: ", response);
+            })
+            .catch((error) => {
+              console.error("Error updating preferences:", error);
+            });
+        }
+
+        return updated;
+      });
+    },
+    [isSignedIn, setUserData]
+  );
 
   // Present the modal when isVisible changes
   useEffect(() => {
@@ -95,23 +115,29 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
   // Handle back button press on Android
   useEffect(() => {
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (isVisible) {
-        onClose();
-        return true;
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (isVisible) {
+          onClose();
+          return true;
+        }
+        return false;
       }
-      return false;
-    });
+    );
 
     return () => backHandler.remove();
   }, [isVisible, onClose]);
 
   // Handle modal closing
-  const handleSheetChanges = useCallback((index: number) => {
-    if (index === -1) {
-      onClose();
-    }
-  }, [onClose]);
+  const handleSheetChanges = useCallback(
+    (index: number) => {
+      if (index === -1) {
+        onClose();
+      }
+    },
+    [onClose]
+  );
 
   return (
     <BottomSheetModal
@@ -122,13 +148,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       handleIndicatorStyle={styles.indicator}
       backgroundStyle={[
         styles.background,
-        { backgroundColor: colorScheme === 'dark' ? Colors.dark.background : Colors.light.background }
+        {
+          backgroundColor:
+            colorScheme === "dark"
+              ? Colors.dark.background
+              : Colors.light.background,
+        },
       ]}
     >
       <BottomSheetView style={styles.contentContainer}>
         <ProfileSection />
         <View style={styles.divider} />
-        <RoutingPreferences 
+        <RoutingPreferences
           preferences={preferences}
           onToggle={handleTogglePreference}
         />
@@ -142,7 +173,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   indicator: {
-    backgroundColor: '#CCCCCC',
+    backgroundColor: "#CCCCCC",
     width: 40,
   },
   background: {
@@ -151,7 +182,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: "#e0e0e0",
     marginHorizontal: 16,
   },
 });

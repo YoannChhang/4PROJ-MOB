@@ -22,7 +22,8 @@ import { Platform } from "react-native";
 
 // Define context interface
 interface UserContextType {
-  userData: User | null;
+  userData: User;
+  setUserData: React.Dispatch<React.SetStateAction<User>>;
   bearerToken: string | undefined;
   isLoading: boolean;
   isSignedIn: boolean;
@@ -32,7 +33,15 @@ interface UserContextType {
 
 // Create the context with a default value
 const UserContext = createContext<UserContextType>({
-  userData: null,
+  userData: {
+    preferences: {
+      avoid_tolls: false,
+      avoid_highways: false,
+      // avoid_ferries: false,
+      avoid_unpaved: false,
+    },
+  } as User,
+  setUserData: () => {},
   bearerToken: undefined,
   isLoading: false,
   isSignedIn: false,
@@ -48,15 +57,18 @@ interface UserProviderProps {
 }
 
 export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
-  const [userData, setUserData] = useState<User | null>(null);
+  const [userData, setUserData] = useState<User>({
+    preferences: {
+      avoid_tolls: false,
+      avoid_highways: false,
+      // avoid_ferries: false,
+      avoid_unpaved: false,
+    },
+  } as User);
   const [bearerToken, setBearerToken] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const isSignedIn = useMemo(() => !!bearerToken, [bearerToken]);
-
-  useEffect(() => {
-    console.log(bearerToken);
-  }, [bearerToken]);
 
   useEffect(() => {
     // Configure Google Sign-In and check if user is already signed in
@@ -67,15 +79,6 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
         if (currentUser) {
           const { idToken, user } = currentUser as GoogleUser;
-
-          if (user) {
-            setUserData({
-              email: user.email,
-              name: `${user.familyName} ${user.givenName}`,
-              photo: user.photo,
-              id: user.id,
-            });
-          }
 
           // Get the bearer token
           if (idToken) {
@@ -96,8 +99,18 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
                   // Fetch complete user profile from backend
                   getCurrentUser()
                     .then((userResponse) => {
-                      if (userResponse.data) {
-                        setUserData(userResponse.data);
+                      // user is Google data and userResponse.data is BE data
+                      if (userResponse.data && user) {
+                        // setUserData(userResponse.data);
+
+                        console.log(userResponse.data.preferences)
+                        setUserData({
+                          email: user.email,
+                          name: `${user.familyName} ${user.givenName}`,
+                          photo: user.photo,
+                          id: user.id,
+                          preferences: userResponse.data.preferences,
+                        });
                       }
                     })
                     .catch((err) => {
@@ -123,6 +136,8 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   }, []);
 
   const signIn = async () => {
+    if (isSignedIn) return;
+
     try {
       setIsLoading(true);
       await GoogleSignin.hasPlayServices();
@@ -131,15 +146,6 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
       if (signedUser) {
         const { idToken, user } = signedUser as GoogleUser;
-
-        if (user) {
-          setUserData({
-            email: user.email,
-            name: `${user.familyName} ${user.givenName}`,
-            photo: user.photo,
-            id: user.id,
-          });
-        }
 
         // Get the bearer token
         if (idToken) {
@@ -160,8 +166,16 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
                 // Fetch complete user profile from backend
                 getCurrentUser()
                   .then((userResponse) => {
-                    if (userResponse.data) {
-                      setUserData(userResponse.data);
+                    if (userResponse.data && user) {
+                      // setUserData(userResponse.data);
+                      console.log(userResponse.data.preferences)
+                      setUserData({
+                        email: user.email,
+                        name: `${user.familyName} ${user.givenName}`,
+                        photo: user.photo,
+                        id: user.id,
+                        preferences: userResponse.data.preferences,
+                      });
                     }
                   })
                   .catch((err) => {
@@ -184,10 +198,19 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   };
 
   const signOut = async () => {
+    if (!isSignedIn) return;
+
     try {
       setIsLoading(true);
       await GoogleSignin.signOut();
-      setUserData(null);
+      setUserData({
+        preferences: {
+          avoid_tolls: false,
+          avoid_highways: false,
+          // avoid_ferries: false,
+          avoid_unpaved: false,
+        },
+      } as User);
       setBearerToken(undefined);
       // Clear the auth token from API headers
       setAuthToken(undefined);
@@ -200,6 +223,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
   const value = {
     userData,
+    setUserData,
     bearerToken,
     isLoading,
     isSignedIn,
