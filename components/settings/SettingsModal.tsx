@@ -18,11 +18,13 @@ import { UserPreferences } from "@/types/api";
 interface SettingsModalProps {
   isVisible: boolean;
   onClose: () => void;
+  toLogin: () => void;
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({
   isVisible,
   onClose,
+  toLogin,
 }) => {
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
   const colorScheme = useColorScheme() ?? "light";
@@ -78,13 +80,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleTogglePreference = useCallback(
     (id: string, value: boolean) => {
       setUserData((prev) => {
-
-        const newPref = { ...prev.preferences, [id]: value}
+        const newPref = { ...prev.preferences, [id]: value };
 
         const updated = {
           ...prev,
-          preferences: newPref
-        }
+          preferences: newPref,
+        };
 
         // Save preferences to backend if user is logged in
         if (isSignedIn) {
@@ -157,7 +158,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       ]}
     >
       <BottomSheetView style={styles.contentContainer}>
-        <ProfileSection />
+        <ProfileSection
+          toLogin={() => {
+            toLogin();
+            onClose();
+          }}
+        />
         <View style={styles.divider} />
         <RoutingPreferences
           preferences={preferences}

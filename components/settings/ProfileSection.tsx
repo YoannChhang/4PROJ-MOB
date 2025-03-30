@@ -9,12 +9,14 @@ import { useUser } from "@/providers/UserProvider";
 import { updateUserPreferences } from "@/services/useService";
 import { User, UserPreferences } from "@/types/api";
 import IconButton from "../ui/IconButton";
+import LoginForm from "../auth/LoginForm";
+import GoogleLoginButton from "@/components/googleAuth/GoogleLoginButton";
 
 interface ProfileSectionProps {
-  // Add any props if needed
+  toLogin: () => void;
 }
 
-const ProfileSection: React.FC<ProfileSectionProps> = () => {
+const ProfileSection: React.FC<ProfileSectionProps> = ({ toLogin }) => {
   const { userData, isLoading, isSignedIn, signIn, signOut } = useUser();
   const colorScheme = useColorScheme() ?? "light";
 
@@ -76,17 +78,12 @@ const ProfileSection: React.FC<ProfileSectionProps> = () => {
       <IconButton
         text="Sign in"
         icon={<FontAwesome5 name="sign-in-alt" size={16} color="#fff" />}
-        onPress={() => {}}
+        onPress={toLogin}
         buttonStyle={styles.signInButton}
         textStyle={styles.buttonText}
       />
-      <IconButton
-        text="Sign in"
-        icon={<GoogleIcon width={20} height={20} />}
-        onPress={signIn}
-        buttonStyle={styles.signInButtonGoogle}
-        textStyle={styles.buttonTextGoogle}
-      />
+
+      <GoogleLoginButton text="Sign in with Google" />
     </View>
   );
 };
@@ -134,22 +131,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#4285F4",
     elevation: 2,
   },
-  signInButtonGoogle: {
-    marginTop: 8,
-    backgroundColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 1,
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
   buttonText: {
     color: "#fff",
-  },
-  buttonTextGoogle: {
-    color: "#000",
   },
   signOutButton: {
     backgroundColor: "#EA4335",
