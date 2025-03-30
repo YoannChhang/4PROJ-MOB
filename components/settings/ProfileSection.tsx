@@ -1,11 +1,5 @@
 import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  Image,
-} from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, Image } from "react-native";
 // @ts-ignore
 import GoogleIcon from "@/assets/images/google-logo.svg";
 import { FontAwesome5 } from "@expo/vector-icons";
@@ -138,17 +132,11 @@ const styles = StyleSheet.create({
   },
   signInButton: {
     backgroundColor: "#4285F4",
-    paddingHorizontal: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
     elevation: 2,
   },
   signInButtonGoogle: {
     marginTop: 8,
     backgroundColor: "#fff",
-    paddingHorizontal: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -165,11 +153,6 @@ const styles = StyleSheet.create({
   },
   signOutButton: {
     backgroundColor: "#EA4335",
-    paddingHorizontal: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
     elevation: 2,
   },
 });

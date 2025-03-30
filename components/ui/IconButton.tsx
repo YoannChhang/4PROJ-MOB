@@ -1,8 +1,15 @@
 import React from "react";
-import { Text, TouchableOpacity, ViewStyle, TextStyle, StyleSheet, View } from "react-native";
+import {
+  Text,
+  TouchableOpacity,
+  ViewStyle,
+  TextStyle,
+  StyleSheet,
+  View,
+} from "react-native";
 
 interface IconButtonProps {
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
   text: string;
   onPress: () => void;
   buttonStyle?: ViewStyle;
@@ -20,7 +27,9 @@ const IconButton: React.FC<IconButtonProps> = ({
 }) => {
   return (
     <TouchableOpacity style={[styles.button, buttonStyle]} onPress={onPress}>
-      <View style={[styles.iconContainer, iconContainerStyle]}>{icon}</View>
+      {icon ? (
+        <View style={[styles.iconContainer, iconContainerStyle]}>{icon}</View>
+      ) : null}
       <Text style={[styles.buttonText, textStyle]}>{text}</Text>
     </TouchableOpacity>
   );
@@ -31,8 +40,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    padding: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderRadius: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   iconContainer: {
     marginRight: 10,
