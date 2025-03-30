@@ -1,11 +1,20 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
-import { useUser } from '@/providers/UserProvider';
-import { updateUserPreferences } from '@/services/useService';
-import { User, UserPreferences } from '@/types/api';
+import React from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  Image,
+} from "react-native";
+// @ts-ignore
+import GoogleIcon from "@/assets/images/google-logo.svg";
+import { FontAwesome5 } from "@expo/vector-icons";
+import { Colors } from "@/constants/Colors";
+import { useColorScheme } from "@/hooks/useColorScheme";
+import { useUser } from "@/providers/UserProvider";
+import { updateUserPreferences } from "@/services/useService";
+import { User, UserPreferences } from "@/types/api";
+import IconButton from "../ui/IconButton";
 
 interface ProfileSectionProps {
   // Add any props if needed
@@ -13,7 +22,7 @@ interface ProfileSectionProps {
 
 const ProfileSection: React.FC<ProfileSectionProps> = () => {
   const { userData, isLoading, isSignedIn, signIn, signOut } = useUser();
-  const colorScheme = useColorScheme() ?? 'light';
+  const colorScheme = useColorScheme() ?? "light";
 
   if (isLoading) {
     return (
@@ -23,11 +32,13 @@ const ProfileSection: React.FC<ProfileSectionProps> = () => {
     );
   }
 
-  if (isSignedIn && userData) {
+  if (isSignedIn) {
     return (
       <View style={styles.container}>
         <View style={styles.profileHeader}>
-          <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Profile</Text>
+          <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
+            Profile
+          </Text>
         </View>
         <View style={styles.userInfoContainer}>
           {userData.photo && (
@@ -37,38 +48,51 @@ const ProfileSection: React.FC<ProfileSectionProps> = () => {
             />
           )}
           <View style={styles.userTextInfo}>
-            <Text style={[styles.userName, { color: Colors[colorScheme].text }]}>
+            <Text
+              style={[styles.userName, { color: Colors[colorScheme].text }]}
+            >
               {userData.name}
             </Text>
-            <Text style={[styles.userEmail, { color: Colors[colorScheme].icon }]}>
+            <Text
+              style={[styles.userEmail, { color: Colors[colorScheme].icon }]}
+            >
               {userData.email}
             </Text>
           </View>
         </View>
-        <TouchableOpacity
-          style={[styles.button, styles.signOutButton]}
+        <IconButton
+          text="Sign out"
+          icon={<FontAwesome5 name="sign-out-alt" size={16} color="#fff" />}
           onPress={signOut}
-        >
-          <Text style={styles.buttonText}>Sign Out</Text>
-          <FontAwesome5 name="sign-out-alt" size={16} color="#fff" />
-        </TouchableOpacity>
+          buttonStyle={styles.signOutButton}
+          textStyle={styles.buttonText}
+        />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Profile</Text>
+      <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
+        Profile
+      </Text>
       <Text style={[styles.subtitle, { color: Colors[colorScheme].icon }]}>
         Sign in to save your preferences
       </Text>
-      <TouchableOpacity
-        style={[styles.button, styles.signInButton]}
+      <IconButton
+        text="Sign in"
+        icon={<FontAwesome5 name="sign-in-alt" size={16} color="#fff" />}
+        onPress={() => {}}
+        buttonStyle={styles.signInButton}
+        textStyle={styles.buttonText}
+      />
+      <IconButton
+        text="Sign in"
+        icon={<GoogleIcon width={20} height={20} />}
         onPress={signIn}
-      >
-        <FontAwesome5 name="google" size={16} color="#fff" style={styles.buttonIcon} />
-        <Text style={styles.buttonText}>Sign in with Google</Text>
-      </TouchableOpacity>
+        buttonStyle={styles.signInButtonGoogle}
+        textStyle={styles.buttonTextGoogle}
+      />
     </View>
   );
 };
@@ -83,7 +107,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 8,
   },
   subtitle: {
@@ -91,8 +115,8 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   userInfoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 24,
   },
   profileImage: {
@@ -106,34 +130,47 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 4,
   },
   userEmail: {
     fontSize: 14,
   },
-  button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 8,
-  },
   signInButton: {
-    backgroundColor: '#4285F4',
+    backgroundColor: "#4285F4",
+    paddingHorizontal: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  signOutButton: {
-    backgroundColor: '#EA4335',
-  },
-  buttonIcon: {
-    marginRight: 8,
+  signInButtonGoogle: {
+    marginTop: 8,
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: "#ddd",
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginRight: 8,
+    color: "#fff",
+  },
+  buttonTextGoogle: {
+    color: "#000",
+  },
+  signOutButton: {
+    backgroundColor: "#EA4335",
+    paddingHorizontal: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
 });
 
