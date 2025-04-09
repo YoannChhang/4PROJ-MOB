@@ -23,6 +23,7 @@ const StyledTextInput: React.FC<StyledTextInputProps> = ({
       <TextInput
         style={[styles.input, inputStyle]}
         placeholderTextColor="#999"
+        caretHidden={false}
         {...props}
       />
     </View>

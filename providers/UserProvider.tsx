@@ -14,11 +14,14 @@ import { configureGoogleSignIn } from "@/components/googleAuth/configureGoogle";
 import {
   googleAndroid,
   googleIOS,
+  loginWithEmail,
+  registerUser,
   setAuthToken,
   getCurrentUser,
 } from "@/services/useService";
-import { User } from "@/types/api";
+import { ApiResponse, User } from "@/types/api";
 import { Platform } from "react-native";
+import { useRouter } from "expo-router";
 
 // Define context interface
 interface UserContextType {
@@ -27,7 +30,19 @@ interface UserContextType {
   bearerToken: string | undefined;
   isLoading: boolean;
   isSignedIn: boolean;
-  signIn: () => Promise<void>;
+  register: (
+    name: string,
+    email: string,
+    password: string,
+    onSuccess: () => void,
+    onFail: (msg: string) => void
+  ) => Promise<void>;
+  signIn: (
+    isGoogle: boolean,
+    onFail: (msg: string) => void,
+    email?: string,
+    password?: string
+  ) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -45,6 +60,7 @@ const UserContext = createContext<UserContextType>({
   bearerToken: undefined,
   isLoading: false,
   isSignedIn: false,
+  register: async () => {},
   signIn: async () => {},
   signOut: async () => {},
 });
@@ -67,6 +83,8 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   } as User);
   const [bearerToken, setBearerToken] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  const router = useRouter();
 
   const isSignedIn = useMemo(() => !!bearerToken, [bearerToken]);
 
@@ -103,7 +121,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
                       if (userResponse.data && user) {
                         // setUserData(userResponse.data);
 
-                        console.log(userResponse.data.preferences)
+                        console.log(userResponse.data.preferences);
                         setUserData({
                           email: user.email,
                           name: `${user.familyName} ${user.givenName}`,
@@ -135,17 +153,89 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     initializeAuth();
   }, []);
 
-  const signIn = async () => {
+  const register = async (
+    name: string,
+    email: string,
+    password: string,
+    onSuccess: () => void,
+    onFail: (msg: string) => void
+  ) => {
     if (isSignedIn) return;
 
+    registerUser({
+      name,
+      email,
+      password,
+    })
+      .then((res) => {
+        if (res.data.ok) onSuccess();
+        else onFail("Failed to register account");
+      })
+      .catch((error) => {
+        onFail("Registration error:" + error);
+        console.error("Registration error:", error);
+      });
+  };
+
+  const afterSignIn = (res: ApiResponse<any>) => {
+    // Extract token from response
+    const token = res.data?.access_token || "";
+    setBearerToken(token);
+
+    // Set the token for all future API requests
+    setAuthToken(token);
+
+    // Fetch complete user profile from backend
+    getCurrentUser()
+      .then((userResponse) => {
+        if (userResponse.data) {
+          setUserData(userResponse.data);
+        }
+      })
+      .catch((err) => {
+        console.error("Error fetching user data:", err);
+      });
+
+    router.dismissTo("/");
+  };
+
+  const signIn = async (
+    isGoogle: boolean,
+    onFail: (msg: string) => void,
+    email?: string,
+    password?: string
+  ) => {
+    if (isSignedIn) return;
+
+    setIsLoading(true);
+
+    if (!isGoogle) {
+      try {
+        if (!email || !password) return;
+
+        loginWithEmail(email, password)
+          .then(afterSignIn)
+          .catch((error) => {
+            onFail("Authentication error:" + error);
+            console.error("Authentication error:", error);
+          });
+      } catch (error) {
+        onFail("Error signing in:" + error);
+        console.error("Error signing in:", error);
+      } finally {
+        setIsLoading(false);
+      }
+
+      return;
+    }
+
     try {
-      setIsLoading(true);
       await GoogleSignin.hasPlayServices();
       // Use any to avoid type issues with GoogleSignin's changing API
       const { data: signedUser } = await GoogleSignin.signIn();
 
       if (signedUser) {
-        const { idToken, user } = signedUser as GoogleUser;
+        const { idToken } = signedUser as GoogleUser;
 
         // Get the bearer token
         if (idToken) {
@@ -155,42 +245,19 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
               Platform.OS === "ios" ? googleIOS : googleAndroid;
 
             googleAuthMethod(idToken)
-              .then((res) => {
-                // Extract token from response
-                const token = res.data?.access_token || "";
-                setBearerToken(token);
-
-                // Set the token for all future API requests
-                setAuthToken(token);
-
-                // Fetch complete user profile from backend
-                getCurrentUser()
-                  .then((userResponse) => {
-                    if (userResponse.data && user) {
-                      // setUserData(userResponse.data);
-                      console.log(userResponse.data.preferences)
-                      setUserData({
-                        email: user.email,
-                        name: `${user.familyName} ${user.givenName}`,
-                        photo: user.photo,
-                        id: user.id,
-                        preferences: userResponse.data.preferences,
-                      });
-                    }
-                  })
-                  .catch((err) => {
-                    console.error("Error fetching user data:", err);
-                  });
-              })
+              .then(afterSignIn)
               .catch((error) => {
+                onFail("Authentication error:" + error);
                 console.error("Authentication error:", error);
               });
           } catch (error) {
+            onFail("Error retrieving tokens:" + error);
             console.error("Error retrieving tokens:", error);
           }
         }
       }
     } catch (error) {
+      onFail("Error signing in:" + error);
       console.error("Error signing in:", error);
     } finally {
       setIsLoading(false);
@@ -227,6 +294,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     bearerToken,
     isLoading,
     isSignedIn,
+    register,
     signIn,
     signOut,
   };

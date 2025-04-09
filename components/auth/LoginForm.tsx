@@ -1,11 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, StyleSheet, Text } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import StyledTextInput from "@/components/ui/StyledTextInput";
 import IconButton from "@/components/ui/IconButton";
 import { FontAwesome5 } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import GoogleLoginButton from "@/components/googleAuth/GoogleLoginButton";
+import { useUser } from "@/providers/UserProvider";
 
 interface LoginFormData {
   email: string;
@@ -17,7 +17,10 @@ interface LoginFormProps {
 }
 
 const LoginForm: React.FC<LoginFormProps> = ({ toRegister }) => {
-  //   const router = useRouter();
+  const [loginError, setError] = useState("");
+
+  const { signIn } = useUser()
+
   const {
     control,
     handleSubmit,
@@ -30,8 +33,15 @@ const LoginForm: React.FC<LoginFormProps> = ({ toRegister }) => {
   });
 
   const onSubmit = (data: LoginFormData) => {
-    console.log("Logging in with:", data);
-    // Replace with your signIn logic
+
+    const { email, password } = data;
+    
+    const onFail = (msg: string) => {
+      setError(msg)
+    };
+
+    signIn(false, onFail, email, password)
+
   };
 
   return (
@@ -76,6 +86,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ toRegister }) => {
         )}
       />
       {errors.password && <ErrorText message={errors.password.message} />}
+      {loginError && <ErrorText message={loginError} />}
 
       <IconButton
         icon={<FontAwesome5 name="sign-in-alt" size={16} color="#fff" />}
@@ -88,7 +99,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ toRegister }) => {
         text="Don't have an account ? Register"
         onPress={toRegister}
         buttonStyle={styles.registerButton}
-        textStyle={{ color: "#555" }}
+        textStyle={{ color: "#000" }}
       />
 
       <GoogleLoginButton

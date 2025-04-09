@@ -1,15 +1,10 @@
 import React from "react";
 import { View, Text, StyleSheet, ActivityIndicator, Image } from "react-native";
-// @ts-ignore
-import GoogleIcon from "@/assets/images/google-logo.svg";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { Colors } from "@/constants/Colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { useUser } from "@/providers/UserProvider";
-import { updateUserPreferences } from "@/services/useService";
-import { User, UserPreferences } from "@/types/api";
 import IconButton from "../ui/IconButton";
-import LoginForm from "../auth/LoginForm";
 import GoogleLoginButton from "@/components/googleAuth/GoogleLoginButton";
 
 interface ProfileSectionProps {
@@ -17,7 +12,7 @@ interface ProfileSectionProps {
 }
 
 const ProfileSection: React.FC<ProfileSectionProps> = ({ toLogin }) => {
-  const { userData, isLoading, isSignedIn, signIn, signOut } = useUser();
+  const { userData, isLoading, isSignedIn, signOut } = useUser();
   const colorScheme = useColorScheme() ?? "light";
 
   if (isLoading) {

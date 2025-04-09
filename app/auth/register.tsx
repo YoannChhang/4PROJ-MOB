@@ -1,16 +1,21 @@
 import React from "react";
 import { View, StyleSheet, Text } from "react-native";
 import RegisterForm from "@/components/auth/RegisterForm";
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 
 export default function RegisterScreen() {
-
-    const router = useRouter()
+  const router = useRouter();
+  const pathname = usePathname();
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Create Account</Text>
-      <RegisterForm toLogin={() => router.push("/auth")}/>
+      <RegisterForm
+        toLogin={() => {
+          if (pathname == "/auth") return;
+          router.push("/auth");
+        }}
+      />
     </View>
   );
 }

@@ -20,7 +20,7 @@ const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
     <IconButton
       text={text}
       icon={<GoogleIcon width={20} height={20} />}
-      onPress={signIn}
+      onPress={() => signIn(true, (msg: string) => {})}
       buttonStyle={{ ...styles.signInButtonGoogle, ...buttonStyle }}
       textStyle={styles.buttonTextGoogle}
     />

@@ -1,13 +1,14 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, StyleSheet, Text } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import StyledTextInput from "@/components/ui/StyledTextInput";
 import IconButton from "@/components/ui/IconButton";
 import { FontAwesome5 } from "@expo/vector-icons";
 import GoogleLoginButton from "@/components/googleAuth/GoogleLoginButton";
+import { useUser } from "@/providers/UserProvider";
 
 interface RegisterFormData {
-  fullName: string;
+  name: string;
   email: string;
   password: string;
   confirmPassword: string;
@@ -17,6 +18,10 @@ interface RegisterFormProps {
 }
 
 const RegisterForm: React.FC<RegisterFormProps> = ({ toLogin }) => {
+  const [registrationError, setError] = useState("");
+
+  const { register } = useUser();
+
   const {
     control,
     handleSubmit,
@@ -24,7 +29,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ toLogin }) => {
     formState: { errors },
   } = useForm<RegisterFormData>({
     defaultValues: {
-      fullName: "",
+      name: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -33,7 +38,20 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ toLogin }) => {
 
   const onSubmit = (data: RegisterFormData) => {
     console.log("Registering with:", data);
-    // Replace with your register logic
+
+    const { name, email, password } = data;
+
+    const onSuccess = () => {
+      console.log("Success");
+      toLogin();
+      setError("");
+    };
+
+    const onFail = (msg: string) => {
+      setError(msg);
+    };
+
+    register(name, email, password, onSuccess, onFail);
   };
 
   const password = watch("password");
@@ -42,7 +60,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ toLogin }) => {
     <View style={styles.container}>
       <Controller
         control={control}
-        name="fullName"
+        name="name"
         rules={{ required: "Full name is required" }}
         render={({ field: { onChange, onBlur, value } }) => (
           <StyledTextInput
@@ -56,7 +74,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ toLogin }) => {
           />
         )}
       />
-      {errors.fullName && <ErrorText message={errors.fullName.message} />}
+      {errors.name && <ErrorText message={errors.name.message} />}
 
       <Controller
         control={control}
@@ -121,6 +139,8 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ toLogin }) => {
         <ErrorText message={errors.confirmPassword.message} />
       )}
 
+      {registrationError && <ErrorText message={registrationError} />}
+
       <IconButton
         icon={<FontAwesome5 name="user-plus" size={16} color="#fff" />}
         text="Register"
@@ -133,7 +153,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ toLogin }) => {
         text="Already have an account? Log in"
         onPress={toLogin}
         buttonStyle={styles.loginRedirectButton}
-        textStyle={{ color: "#555" }}
+        textStyle={{ color: "#000" }}
       />
 
       <GoogleLoginButton

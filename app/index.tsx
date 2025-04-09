@@ -12,12 +12,13 @@ import Mapbox, {
 import MapboxSearchBar from "@/components/mapbox/MapboxSearchBar";
 import useRoute from "@/hooks/useRoute";
 import ItinerarySelect from "@/components/mapbox/ItinerarySelect";
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_SK as string);
 
 const Map = () => {
   const router = useRouter();
+  const pathname = usePathname();
 
   const [selectedLocation, setSelectedLocation] = useState<{
     latitude: number;
@@ -238,7 +239,10 @@ const Map = () => {
       <SettingsModal
         isVisible={isSettingsVisible}
         onClose={() => setIsSettingsVisible(false)}
-        toLogin={() => router.push("/auth")}
+        toLogin={() => {
+          if (pathname == "/auth") return;
+          router.push("/auth");
+        }}
       />
     </View>
   );
