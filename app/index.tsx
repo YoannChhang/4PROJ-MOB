@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { StyleSheet, View } from "react-native";
+import SettingsButton from "@/components/settings/SettingsButton";
+import SettingsModal from "@/components/settings/SettingsModal";
 import Mapbox, {
   MapView,
   Camera,
@@ -10,10 +12,14 @@ import Mapbox, {
 import MapboxSearchBar from "@/components/mapbox/MapboxSearchBar";
 import useRoute from "@/hooks/useRoute";
 import ItinerarySelect from "@/components/mapbox/ItinerarySelect";
+import { usePathname, useRouter } from "expo-router";
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_SK as string);
 
 const Map = () => {
+  const router = useRouter();
+  const pathname = usePathname();
+
   const [selectedLocation, setSelectedLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -24,6 +30,9 @@ const Map = () => {
     latitude: number;
     longitude: number;
   } | null>(null);
+
+  // Settings modal state
+  const [isSettingsVisible, setIsSettingsVisible] = useState(false);
 
   const fetchUserLocation = async () => {
     try {
@@ -86,6 +95,11 @@ const Map = () => {
     stopNavigation,
   } = useRoute(origin, destination);
 
+  // Toggle settings modal
+  const toggleSettings = useCallback(() => {
+    setIsSettingsVisible((prev) => !prev);
+  }, []);
+
   return (
     <View style={styles.page}>
       <View style={styles.container}>
@@ -103,10 +117,13 @@ const Map = () => {
             followUserMode={"course" as UserTrackingMode}
             followZoomLevel={isNavigating ? 14 : undefined}
             bounds={
-              selectedRoute && (selectedRoute?.geometry.coordinates ?? []).length > 0
+              selectedRoute &&
+              (selectedRoute?.geometry.coordinates ?? []).length > 0
                 ? {
                     ne: selectedRoute.geometry.coordinates[0], // First coordinate (northeast)
-                    sw: selectedRoute.geometry.coordinates[selectedRoute?.geometry.coordinates.length - 1], // Last coordinate (southwest)
+                    sw: selectedRoute.geometry.coordinates[
+                      selectedRoute?.geometry.coordinates.length - 1
+                    ], // Last coordinate (southwest)
                     paddingLeft: 50,
                     paddingRight: 50,
                     paddingTop: 50,
@@ -136,7 +153,10 @@ const Map = () => {
               <Mapbox.ShapeSource
                 id={`routeSource-${index}`}
                 key={`routeSource-${index}`}
-                shape={{ type: "LineString", coordinates: route.geometry.coordinates }}
+                shape={{
+                  type: "LineString",
+                  coordinates: route.geometry.coordinates,
+                }}
                 onPress={() => chooseRoute(route, selectedRoute)}
               >
                 <Mapbox.LineLayer
@@ -165,17 +185,21 @@ const Map = () => {
             </Mapbox.ShapeSource>
           )}
 
-          {selectedRoute && (selectedRoute.geometry.coordinates.length ?? []) > 0 && (
-            <Mapbox.ShapeSource
-              id="routeSource"
-              shape={{ type: "LineString", coordinates: selectedRoute.geometry.coordinates }}
-            >
-              <Mapbox.LineLayer
-                id="routeFill"
-                style={{ lineColor: "blue", lineWidth: 3 }}
-              />
-            </Mapbox.ShapeSource>
-          )}
+          {selectedRoute &&
+            (selectedRoute.geometry.coordinates.length ?? []) > 0 && (
+              <Mapbox.ShapeSource
+                id="routeSource"
+                shape={{
+                  type: "LineString",
+                  coordinates: selectedRoute.geometry.coordinates,
+                }}
+              >
+                <Mapbox.LineLayer
+                  id="routeFill"
+                  style={{ lineColor: "blue", lineWidth: 3 }}
+                />
+              </Mapbox.ShapeSource>
+            )}
 
           {selectedLocation && (
             <PointAnnotation
@@ -203,11 +227,22 @@ const Map = () => {
         alternateRoutes={alternateRoutes}
         chooseRoute={chooseRoute}
         onBack={() => {
-          setSelectedLocation(null)
-          setSelectedRoute(null)
-          setAlternateRoutes([])
+          setSelectedLocation(null);
+          setSelectedRoute(null);
+          setAlternateRoutes([]);
         }}
         // onStartNavigation={startNavigation}
+      />
+
+      {/* Settings Button and Modal */}
+      <SettingsButton onPress={toggleSettings} />
+      <SettingsModal
+        isVisible={isSettingsVisible}
+        onClose={() => setIsSettingsVisible(false)}
+        toLogin={() => {
+          if (pathname == "/auth") return;
+          router.push("/auth");
+        }}
       />
     </View>
   );

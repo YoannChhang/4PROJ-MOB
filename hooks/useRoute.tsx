@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { Platform } from "react-native";
 import MapboxGL from "@rnmapbox/maps";
 import { MapboxDirectionsResponse, Route } from "@/types/mapbox";
+import { RoutingPreference } from "@/components/settings/RoutingPreferences";
+import { useUser } from "@/providers/UserProvider";
 
 interface RouteHookReturn {
   selectedRoute: Route | null;
@@ -19,10 +22,24 @@ interface RouteHookReturn {
 
 const MAX_DEVIATION_DISTANCE = 50;
 
+interface RouteOptions {
+  preferences?: RoutingPreference[];
+}
+
 const useRoute = (
   origin: GeoJSON.Position | null,
   destination: GeoJSON.Position | null
 ): RouteHookReturn => {
+  // Get user data and preferences from context
+  const { userData } = useUser();
+
+  const preferences = useMemo(() => {
+    return Object.entries(userData.preferences).map(([key, value]) => ({
+      id: key,
+      enabled: value,
+    }));
+  }, [userData.preferences]);
+
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
   const [alternateRoutes, setAlternateRoutes] = useState<Route[]>([]);
 
@@ -55,49 +72,140 @@ const useRoute = (
     setLoading(true);
     setError(null);
     try {
-      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${start.join(
+      // Base URL for the Mapbox Directions API
+      const baseUrl = `https://api.mapbox.com/directions/v5/mapbox/driving-traffic/${start.join(
         ","
       )};${end.join(
         ","
-      )}?geometries=geojson&overview=full&alternatives=true&access_token=${
+      )}?geometries=geojson&overview=full&alternatives=true&steps=true&language=fr&banner_instructions=true&voice_instructions=true&voice_units=metric&access_token=${
         process.env.EXPO_PUBLIC_MAPBOX_SK
       }`;
-      const tollFreeUrl = `${url}&exclude=toll`;
 
-      const response = await fetch(url);
-      const tollFreeResponse = await fetch(tollFreeUrl);
+      // console.log(baseUrl);
 
-      const data = (await response.json()) as MapboxDirectionsResponse;
-      const tollFreeData =
-        (await tollFreeResponse.json()) as MapboxDirectionsResponse;
+      // Apply routing preferences to create different URLs
+      let exclude: string[] = [];
+      let urls: { url: string; label: string }[] = [];
 
-      if (!data.routes.length && !tollFreeData.routes.length) {
-        setError("No route found.");
-      }
+      // Check for routing preferences
+      const avoidTolls =
+        preferences.find((p) => p.id === "avoidTolls")?.enabled || false;
+      const avoidHighways =
+        preferences.find((p) => p.id === "avoidHighways")?.enabled || false;
+      // const avoidFerries =
+      //   preferences.find((p) => p.id === "avoidFerries")?.enabled || false;
+      const avoidUnpaved =
+        preferences.find((p) => p.id === "avoidUnpaved")?.enabled || false;
 
-      if (data.routes.length) {
-        setSelectedRoute(data.routes[0]);
-        setAlternateRoutes(data.routes.slice(1));
-        setTraveledCoords([]); // Reset traveled route
-      }
+      // Default URL
+      // urls.push({ url: baseUrl, isPreferred: !Boolean(avoidTolls || avoidHighways || avoidUnpaved), label: "Default" });
 
-      if (tollFreeData.routes.length) {
-        tollFreeData.routes.forEach((tollFreeRoute) => {
-          const isDuplicate =
-            data.routes.some(
-              (route) =>
-                JSON.stringify(route.geometry) ===
-                JSON.stringify(tollFreeRoute.geometry)
-            ) ||
-            (selectedRoute &&
-              JSON.stringify(selectedRoute.geometry) ===
-                JSON.stringify(tollFreeRoute.geometry));
+      // Apply preferences
+      if (avoidTolls) exclude.push("toll");
 
-          if (!isDuplicate) {
-            setAlternateRoutes((prev) => [...prev, tollFreeRoute]);
-          }
+      // if (avoidFerries) exclude.push('ferry');
+
+      if (avoidHighways) exclude.push("motorway");
+
+      if (avoidUnpaved) exclude.push("unpaved");
+
+      // Add URL with exclusions if any
+      if (exclude.length > 0) {
+        const excludeUrl = `${baseUrl}&exclude=${exclude.join(",")}`;
+        urls.push({
+          url: excludeUrl,
+          label: `Default`,
+        });
+      } else {
+        urls.push({
+          url: baseUrl,
+          label: `Default`,
         });
       }
+
+      const avoidHighwaysUrl = `${baseUrl}&exclude=motorway`;
+      const avoidTollsUrl = `${baseUrl}&exclude=toll`;
+      const avoidUnpavedUrl = `${baseUrl}&exclude=unpaved`;
+
+      urls.push({
+        url: avoidHighwaysUrl,
+        label: `No highways`,
+      });
+
+      urls.push({
+        url: avoidTollsUrl,
+        label: `No tolls`,
+      });
+
+      urls.push({
+        url: avoidUnpavedUrl,
+        label: `No unpaved`,
+      });
+
+      // Fetch routes for all URLs
+      const responses = await Promise.all(urls.map(({ url }) => fetch(url)));
+      const dataResults = await Promise.all(
+        responses.map(
+          (response) => response.json() as Promise<MapboxDirectionsResponse>
+        )
+      );
+
+      const defaultRouteResponse = dataResults.shift();
+
+      // Process results
+      let allRoutes: Route[] =
+        defaultRouteResponse?.routes.map((route) => {
+          return { ...route, is_prefered: true, weight_name: "" };
+        }) ?? [];
+
+      // Process all routes from different URL requests
+      dataResults.forEach((data, index) => {
+        if (!data.routes.length) return;
+
+        const urlInfo = urls[index + 1];
+
+        // Add routes to pool, marking preferred ones
+        data.routes.forEach((route) => {
+          const foundIndex = allRoutes.findIndex(
+            (existingRoute) =>
+              JSON.stringify(existingRoute.geometry) ===
+              JSON.stringify(route.geometry)
+          );
+
+          if (foundIndex === -1) {
+            route.weight_name = urlInfo.label;
+            route.is_prefered = false;
+            allRoutes.push(route);
+          } else {
+            const foundRoute = allRoutes[foundIndex];
+            allRoutes[foundIndex] = {
+              ...foundRoute,
+              weight_name: foundRoute.weight_name
+                ? `${urlInfo.label}, ${foundRoute.weight_name}`
+                : urlInfo.label,
+            };
+          }
+        });
+      });
+
+      allRoutes.sort((a, b) => {
+        if (a.is_prefered !== b.is_prefered) {
+          return a.is_prefered ? -1 : 1; // isPrefered: true first
+        }
+        return a.weight - b.weight; // then by ascending weight
+      });
+
+      // If no routes found from any request
+      if (allRoutes.length === 0) {
+        setError("No route found.");
+        return;
+      } else if (allRoutes.length > 0) {
+        // If no main route but we have alternates
+        setSelectedRoute(allRoutes[0]);
+        setAlternateRoutes(allRoutes.slice(1));
+      }
+
+      setTraveledCoords([]); // Reset traveled route
     } catch (err) {
       setError("Failed to fetch route.");
     } finally {
