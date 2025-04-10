@@ -6,14 +6,15 @@ import { Colors } from '@/constants/Colors';
 
 interface SettingsButtonProps {
   onPress: () => void;
+  style: object;
 }
 
-const SettingsButton: React.FC<SettingsButtonProps> = ({ onPress }) => {
+const SettingsButton: React.FC<SettingsButtonProps> = ({ onPress, style }) => {
   const colorScheme = useColorScheme() ?? 'light';
   
   return (
     <TouchableOpacity 
-      style={styles.container} 
+      style={[styles.container, style]} 
       onPress={onPress}
       activeOpacity={0.7}
     >

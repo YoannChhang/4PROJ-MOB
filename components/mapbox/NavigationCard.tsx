@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import Tts from 'react-native-tts';
+import Tts from "react-native-tts";
 import { View, Text, StyleSheet } from "react-native";
 import { Route } from "@/types/mapbox";
 
@@ -8,9 +8,10 @@ interface NavigationCardProps {
   instruction: string;
 }
 
-const NavigationCard: React.FC<NavigationCardProps> = ({ route, instruction }) => {
-  const distance = route.legs[0]?.steps[0]?.distance ? (route.legs[0]?.steps[0]?.distance / 1000).toFixed(1) : "0";
-
+const NavigationCard: React.FC<NavigationCardProps> = ({
+  route,
+  instruction,
+}) => {
   useEffect(() => {
     Tts.speak(instruction);
     return () => {
@@ -21,7 +22,6 @@ const NavigationCard: React.FC<NavigationCardProps> = ({ route, instruction }) =
   return (
     <View style={styles.container}>
       <Text style={styles.instruction}>{instruction}</Text>
-      <Text style={styles.distance}>{distance} km</Text>
     </View>
   );
 };
@@ -47,10 +47,6 @@ const styles = StyleSheet.create({
   instruction: {
     fontSize: 18,
     fontWeight: "bold",
-  },
-  distance: {
-    fontSize: 16,
-    color: "gray",
   },
 });
 

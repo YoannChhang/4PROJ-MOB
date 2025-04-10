@@ -13,7 +13,8 @@ import MapboxSearchBar from "@/components/mapbox/MapboxSearchBar";
 import useRoute from "@/hooks/useRoute";
 import ItinerarySelect from "@/components/mapbox/ItinerarySelect";
 import { usePathname, useRouter } from "expo-router";
-import NavigationCard from "@/components/mapbox/NavigationCard.tsx";
+import NavigationCard from "@/components/mapbox/NavigationCard";
+import NavigationControlCard from "@/components/mapbox/NavigationControlCard";
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_SK as string);
 
@@ -111,7 +112,10 @@ const Map = () => {
             styleURL="mapbox://styles/mapbox/navigation-night-v1"
             logoEnabled={false}
             scaleBarEnabled={false}
-            attributionPosition={{ bottom: 8, left: 8 }}
+            attributionPosition={{
+              bottom: isNavigating ? 130 : 8,
+              left: 8,
+            }}
           >
             <Camera
               animationMode="flyTo"
@@ -245,7 +249,10 @@ const Map = () => {
         />
 
         {/* Settings Button and Modal */}
-        <SettingsButton onPress={toggleSettings} />
+        <SettingsButton
+          onPress={toggleSettings}
+          style={{ bottom: isNavigating ? 130 : 10 }}
+        />
         <SettingsModal
           isVisible={isSettingsVisible}
           onClose={() => setIsSettingsVisible(false)}
@@ -255,10 +262,21 @@ const Map = () => {
           }}
         />
         {isNavigating && selectedRoute && (
-          <NavigationCard
-            route={selectedRoute}
-            instruction={currentInstruction}
-          />
+          <>
+            <NavigationCard
+              route={selectedRoute}
+              instruction={currentInstruction}
+            />
+            <NavigationControlCard
+              route={selectedRoute}
+              onCancelNavigation={() => {
+                stopNavigation();
+                setSelectedLocation(null);
+                setSelectedRoute(null);
+                setAlternateRoutes([]);
+              }}
+            />
+          </>
         )}
       </View>
     </>
