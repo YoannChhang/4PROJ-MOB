@@ -1,9 +1,6 @@
 import React, { useCallback, useMemo, useRef, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import {
-  BottomSheetModal,
-  BottomSheetView,
-} from "@gorhom/bottom-sheet";
+import { BottomSheetModal, BottomSheetView } from "@gorhom/bottom-sheet";
 import { Route } from "@/types/mapbox";
 import { FontAwesome5 } from "@expo/vector-icons";
 
@@ -35,7 +32,6 @@ const ItinerarySelect = ({
     }
   }, [selectedRoute]);
 
-
   // Format duration from seconds to hours and minutes
   const formatDuration = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -48,27 +44,32 @@ const ItinerarySelect = ({
     return `${(meters / 1000).toFixed(1)}km`;
   };
 
-  const renderRouteOption = useCallback((route: Route, index: number) => {
-    const isMainRoute = index === 0;
-    return (
-      <TouchableOpacity
-        key={index}
-        style={[styles.routeOption, isMainRoute && styles.selectedRoute]}
-        onPress={() => chooseRoute(route, selectedRoute)}
-      >
-        <View style={styles.routeHeader}>
-          <Text style={styles.routeTitle}>
-            {formatDuration(route.duration)}
-          </Text>
-        </View>
-        <View style={styles.routeDetails}>
-          <Text style={styles.routeInfo}>
-            {route.weight_name} • {formatDistance(route.distance)}
-          </Text>
-        </View>
-      </TouchableOpacity>
-    );
-  }, [chooseRoute, selectedRoute]);
+  const renderRouteOption = useCallback(
+    (route: Route, index: number) => {
+      const isMainRoute = index === 0;
+      return (
+        <TouchableOpacity
+          key={index}
+          style={[styles.routeOption, isMainRoute && styles.selectedRoute]}
+          onPress={() => {
+            !isMainRoute ? chooseRoute(route, selectedRoute) : null;
+          }}
+        >
+          <View style={styles.routeHeader}>
+            <Text style={styles.routeTitle}>
+              {formatDuration(route.duration)}
+            </Text>
+          </View>
+          <View style={styles.routeDetails}>
+            <Text style={styles.routeInfo}>
+              {route.weight_name} • {formatDistance(route.distance)}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      );
+    },
+    [chooseRoute, selectedRoute]
+  );
 
   return (
     <BottomSheetModal
@@ -97,7 +98,10 @@ const ItinerarySelect = ({
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={[styles.button, styles.startButton]}
-            onPress={onStartNavigation}
+            onPress={() => {
+              onStartNavigation?.();
+              bottomSheetModalRef.current?.dismiss();
+            }}
           >
             <Text style={styles.buttonText}>Start</Text>
           </TouchableOpacity>
