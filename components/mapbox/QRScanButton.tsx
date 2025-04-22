@@ -30,7 +30,6 @@ const QRScanButton: React.FC<QRScanButtonProps> = ({ onPress, style }) => {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 10,
     right: 10,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     width: 44,

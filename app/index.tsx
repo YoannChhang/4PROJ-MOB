@@ -347,12 +347,6 @@ const Map = () => {
           onSelectLocation={(location) => setSelectedLocation(location)}
         />
 
-        {/* QR Code Scan Button */}
-        <QRScanButton
-          onPress={handleQRScan}
-          style={{ top: 100 }} // Position below search bar
-        />
-
         <ItinerarySelect
           selectedRoute={selectedRoute}
           alternateRoutes={alternateRoutes}
@@ -378,10 +372,15 @@ const Map = () => {
           }}
         />
 
+        {/* QR Code Scan Button */}
+        <QRScanButton
+          onPress={handleQRScan}
+          style={{ bottom: isNavigating ? 160 : 60 }} // Position below search bar
+        />
         {/* Settings Button and Modal */}
         <SettingsButton
           onPress={toggleSettings}
-          style={{ bottom: isNavigating ? 130 : 10 }}
+          style={{ bottom: isNavigating ? 110 : 10 }}
         />
         <SettingsModal
           isVisible={isSettingsVisible}
