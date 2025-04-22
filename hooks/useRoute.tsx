@@ -19,6 +19,7 @@ interface RouteHookReturn {
   startNavigation: () => void;
   stopNavigation: () => void;
   currentInstruction: string;
+  setRouteExcludes: React.Dispatch<React.SetStateAction<string[] | undefined>>;
 }
 
 const MAX_DEVIATION_DISTANCE = 50;
@@ -43,6 +44,7 @@ const useRoute = (
 
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
   const [alternateRoutes, setAlternateRoutes] = useState<Route[]>([]);
+  const [routeExcludes, setRouteExcludes] = useState<string[] | undefined>(undefined);
 
   const [traveledCoords, setTraveledCoords] = useState<GeoJSON.Position[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -83,33 +85,27 @@ const useRoute = (
         process.env.EXPO_PUBLIC_MAPBOX_SK
       }`;
 
-      // console.log(baseUrl);
-
       // Apply routing preferences to create different URLs
       let exclude: string[] = [];
       let urls: { url: string; label: string }[] = [];
 
-      // Check for routing preferences
+      // Check for routing preferences from user data
       const avoidTolls =
-        preferences.find((p) => p.id === "avoidTolls")?.enabled || false;
+        preferences.find((p) => p.id === "avoid_tolls")?.enabled || false;
       const avoidHighways =
-        preferences.find((p) => p.id === "avoidHighways")?.enabled || false;
-      // const avoidFerries =
-      //   preferences.find((p) => p.id === "avoidFerries")?.enabled || false;
+        preferences.find((p) => p.id === "avoid_highways")?.enabled || false;
       const avoidUnpaved =
-        preferences.find((p) => p.id === "avoidUnpaved")?.enabled || false;
+        preferences.find((p) => p.id === "avoid_unpaved")?.enabled || false;
 
-      // Default URL
-      // urls.push({ url: baseUrl, isPreferred: !Boolean(avoidTolls || avoidHighways || avoidUnpaved), label: "Default" });
-
-      // Apply preferences
-      if (avoidTolls) exclude.push("toll");
-
-      // if (avoidFerries) exclude.push('ferry');
-
-      if (avoidHighways) exclude.push("motorway");
-
-      if (avoidUnpaved) exclude.push("unpaved");
+      // Apply QR code excludes if present, otherwise use user preferences
+      if (routeExcludes && routeExcludes.length > 0) {
+        exclude = [...routeExcludes];
+      } else {
+        // Apply user preferences
+        if (avoidTolls) exclude.push("toll");
+        if (avoidHighways) exclude.push("motorway");
+        if (avoidUnpaved) exclude.push("unpaved");
+      }
 
       // Add URL with exclusions if any
       if (exclude.length > 0) {
@@ -125,6 +121,8 @@ const useRoute = (
         });
       }
 
+      // Always add alternative routes with different exclusion parameters
+      // for user to choose from, regardless of QR code or preferences
       const avoidHighwaysUrl = `${baseUrl}&exclude=motorway`;
       const avoidTollsUrl = `${baseUrl}&exclude=toll`;
       const avoidUnpavedUrl = `${baseUrl}&exclude=unpaved`;
@@ -219,7 +217,7 @@ const useRoute = (
     if (origin && destination) {
       fetchRoute(origin, destination);
     }
-  }, [origin, destination]);
+  }, [origin, destination, routeExcludes]); // Added routeExcludes to dependencies
 
   useEffect(() => {
     if (!isNavigating) return;
@@ -310,7 +308,7 @@ const useRoute = (
 
     trackUserLocation();
     return () => MapboxGL.locationManager.removeListener(handleLocationUpdate);
-  }, [isNavigating, selectedRoute]);
+  }, [isNavigating, selectedRoute, destination]);
 
   return {
     selectedRoute,
@@ -336,6 +334,7 @@ const useRoute = (
     },
     stopNavigation: () => setIsNavigating(false),
     currentInstruction: currentInstruction,
+    setRouteExcludes,
   };
 };
 

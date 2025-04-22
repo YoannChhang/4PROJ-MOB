@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import SettingsButton from "@/components/settings/SettingsButton";
 import SettingsModal from "@/components/settings/SettingsModal";
@@ -10,9 +10,10 @@ import Mapbox, {
   UserTrackingMode,
 } from "@rnmapbox/maps";
 import MapboxSearchBar from "@/components/mapbox/MapboxSearchBar";
+import QRScanButton from "@/components/mapbox/QRScanButton";
 import useRoute from "@/hooks/useRoute";
 import ItinerarySelect from "@/components/mapbox/ItinerarySelect";
-import { usePathname, useRouter } from "expo-router";
+import { usePathname, useRouter, useLocalSearchParams } from "expo-router";
 import NavigationCard from "@/components/mapbox/NavigationCard";
 import NavigationControlCard from "@/components/mapbox/NavigationControlCard";
 
@@ -21,13 +22,17 @@ Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_SK as string);
 const Map = () => {
   const router = useRouter();
   const pathname = usePathname();
+  const params = useLocalSearchParams();
+  
+  // Ref to track if initial QR params have been processed
+  const initialQrParamsProcessed = useRef(false);
 
   const [selectedLocation, setSelectedLocation] = useState<{
     latitude: number;
     longitude: number;
   } | null>(null);
 
-  // origin should be the user's location
+  // Origin should be the user's location
   const [currUserLocation, setCurrUserLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -55,6 +60,35 @@ const Map = () => {
     fetchUserLocation();
   }, []);
 
+  // Process URL parameters if they exist and haven't been processed yet
+  useEffect(() => {
+    if (
+      params.qrScanned === 'true' && 
+      params.fromLng && 
+      params.fromLat && 
+      params.toLng && 
+      params.toLat && 
+      !initialQrParamsProcessed.current
+    ) {
+      initialQrParamsProcessed.current = true;
+      
+      // Set destination from QR code
+      setSelectedLocation({
+        latitude: Number(params.toLat),
+        longitude: Number(params.toLng),
+      });
+      
+      // If QR code includes a specific origin different from user's location
+      // Note: We might want to add UI to ask if user wants to use their current location or the QR origin
+      if (params.fromLng !== undefined && params.fromLat !== undefined) {
+        setCurrUserLocation({
+          latitude: Number(params.fromLat),
+          longitude: Number(params.fromLng),
+        });
+      }
+    }
+  }, [params, currUserLocation]);
+
   useEffect(() => {
     if (selectedLocation) {
       fetchUserLocation();
@@ -71,6 +105,7 @@ const Map = () => {
         : null,
     [currUserLocation]
   );
+  
   const destination = useMemo(
     () =>
       selectedLocation
@@ -81,6 +116,14 @@ const Map = () => {
         : null,
     [selectedLocation]
   );
+
+  // Parse excludes from QR code params
+  const routeExcludes = useMemo(() => {
+    if (params.excludes && typeof params.excludes === 'string') {
+      return params.excludes.split(',');
+    }
+    return undefined;
+  }, [params.excludes]);
 
   const {
     selectedRoute,
@@ -96,12 +139,25 @@ const Map = () => {
     startNavigation,
     stopNavigation,
     currentInstruction,
+    setRouteExcludes,
   } = useRoute(origin, destination);
+  
+  // Pass route excludes to useRoute
+  useEffect(() => {
+    if (routeExcludes) {
+      setRouteExcludes(routeExcludes);
+    }
+  }, [routeExcludes, setRouteExcludes]);
 
   // Toggle settings modal
   const toggleSettings = useCallback(() => {
     setIsSettingsVisible((prev) => !prev);
   }, []);
+
+  // Handle QR code button press
+  const handleQRScan = () => {
+    router.push({ pathname: "/qr-scanner" as any /* Type assertion to bypass type checking */ });
+  };
 
   return (
     <>
@@ -228,6 +284,12 @@ const Map = () => {
           selectedLocation={selectedLocation}
           onSelectLocation={(location) => setSelectedLocation(location)}
         />
+        
+        {/* QR Code Scan Button */}
+        <QRScanButton 
+          onPress={handleQRScan} 
+          style={{ top: 100 }} // Position below search bar
+        />
 
         <ItinerarySelect
           selectedRoute={selectedRoute}
@@ -237,6 +299,9 @@ const Map = () => {
             setSelectedLocation(null);
             setSelectedRoute(null);
             setAlternateRoutes([]);
+            // Clear URL params when canceling
+            router.setParams({});
+            initialQrParamsProcessed.current = false;
           }}
           onStartNavigation={() => {
             startNavigation();
@@ -245,6 +310,9 @@ const Map = () => {
             setSelectedLocation(null);
             setSelectedRoute(null);
             setAlternateRoutes([]);
+            // Clear URL params when canceling
+            router.setParams({});
+            initialQrParamsProcessed.current = false;
           }}
         />
 
@@ -274,6 +342,9 @@ const Map = () => {
                 setSelectedLocation(null);
                 setSelectedRoute(null);
                 setAlternateRoutes([]);
+                // Clear URL params when canceling navigation
+                router.setParams({});
+                initialQrParamsProcessed.current = false;
               }}
             />
           </>
