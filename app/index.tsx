@@ -13,6 +13,8 @@ import MapboxSearchBar from "@/components/mapbox/MapboxSearchBar";
 import useRoute from "@/hooks/useRoute";
 import ItinerarySelect from "@/components/mapbox/ItinerarySelect";
 import { usePathname, useRouter } from "expo-router";
+import NavigationCard from "@/components/mapbox/NavigationCard";
+import NavigationControlCard from "@/components/mapbox/NavigationControlCard";
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_SK as string);
 
@@ -93,6 +95,7 @@ const Map = () => {
     isNavigating,
     startNavigation,
     stopNavigation,
+    currentInstruction,
   } = useRoute(origin, destination);
 
   // Toggle settings modal
@@ -101,150 +104,182 @@ const Map = () => {
   }, []);
 
   return (
-    <View style={styles.page}>
-      <View style={styles.container}>
-        <MapView
-          style={styles.map}
-          styleURL="mapbox://styles/mapbox/navigation-night-v1"
-          logoEnabled={false}
-          scaleBarEnabled={false}
-          attributionPosition={{ bottom: 8, left: 8 }}
-        >
-          <Camera
-            animationMode="flyTo"
-            animationDuration={2000} // Smooth transition effect
-            followUserLocation={isNavigating}
-            followUserMode={"course" as UserTrackingMode}
-            followZoomLevel={isNavigating ? 14 : undefined}
-            bounds={
-              selectedRoute &&
-              (selectedRoute?.geometry.coordinates ?? []).length > 0
-                ? {
-                    ne: selectedRoute.geometry.coordinates[0], // First coordinate (northeast)
-                    sw: selectedRoute.geometry.coordinates[
-                      selectedRoute?.geometry.coordinates.length - 1
-                    ], // Last coordinate (southwest)
-                    paddingLeft: 50,
-                    paddingRight: 50,
-                    paddingTop: 50,
-                    paddingBottom: 50,
-                  }
-                : currUserLocation // If no route, focus on user location
-                ? {
-                    ne: [
-                      currUserLocation.longitude + 0.01, // Slight padding to prevent being too close
-                      currUserLocation.latitude + 0.01,
-                    ],
-                    sw: [
-                      currUserLocation.longitude - 0.01,
-                      currUserLocation.latitude - 0.01,
-                    ],
-                    paddingLeft: 50,
-                    paddingRight: 50,
-                    paddingTop: 50,
-                    paddingBottom: 50,
-                  }
-                : undefined
-            }
-          />
+    <>
+      <View style={styles.page}>
+        <View style={styles.container}>
+          <MapView
+            style={styles.map}
+            styleURL="mapbox://styles/mapbox/navigation-night-v1"
+            logoEnabled={false}
+            scaleBarEnabled={false}
+            attributionPosition={{
+              bottom: isNavigating ? 130 : 8,
+              left: 8,
+            }}
+          >
+            <Camera
+              animationMode="flyTo"
+              animationDuration={2000} // Smooth transition effect
+              followUserLocation={isNavigating}
+              followUserMode={"course" as UserTrackingMode}
+              followZoomLevel={isNavigating ? 18 : undefined}
+              bounds={
+                selectedRoute &&
+                (selectedRoute?.geometry.coordinates ?? []).length > 0
+                  ? {
+                      ne: selectedRoute.geometry.coordinates[0], // First coordinate (northeast)
+                      sw: selectedRoute.geometry.coordinates[
+                        selectedRoute?.geometry.coordinates.length - 1
+                      ], // Last coordinate (southwest)
+                      paddingLeft: 50,
+                      paddingRight: 50,
+                      paddingTop: 50,
+                      paddingBottom: 50,
+                    }
+                  : currUserLocation // If no route, focus on user location
+                  ? {
+                      ne: [
+                        currUserLocation.longitude + 0.01, // Slight padding to prevent being too close
+                        currUserLocation.latitude + 0.01,
+                      ],
+                      sw: [
+                        currUserLocation.longitude - 0.01,
+                        currUserLocation.latitude - 0.01,
+                      ],
+                      paddingLeft: 50,
+                      paddingRight: 50,
+                      paddingTop: 50,
+                      paddingBottom: 50,
+                    }
+                  : undefined
+              }
+            />
 
-          {!isNavigating &&
-            alternateRoutes.map((route, index) => (
+            {!isNavigating &&
+              alternateRoutes.map((route, index) => (
+                <Mapbox.ShapeSource
+                  id={`routeSource-${index}`}
+                  key={`routeSource-${index}`}
+                  shape={{
+                    type: "LineString",
+                    coordinates: route.geometry.coordinates,
+                  }}
+                  onPress={() => chooseRoute(route, selectedRoute)}
+                >
+                  <Mapbox.LineLayer
+                    id={`routeFill-${index}`}
+                    style={{ lineColor: "gray", lineWidth: 3 }}
+                    belowLayerID="routeFill"
+                  />
+                </Mapbox.ShapeSource>
+              ))}
+
+            {isNavigating && traveledCoords.length > 0 && (
               <Mapbox.ShapeSource
-                id={`routeSource-${index}`}
-                key={`routeSource-${index}`}
-                shape={{
-                  type: "LineString",
-                  coordinates: route.geometry.coordinates,
-                }}
-                onPress={() => chooseRoute(route, selectedRoute)}
+                id="traveledRoute"
+                shape={{ type: "LineString", coordinates: traveledCoords }}
               >
                 <Mapbox.LineLayer
-                  id={`routeFill-${index}`}
-                  style={{ lineColor: "gray", lineWidth: 3 }}
-                  belowLayerID="routeFill"
-                />
-              </Mapbox.ShapeSource>
-            ))}
-
-          {isNavigating && traveledCoords.length > 0 && (
-            <Mapbox.ShapeSource
-              id="traveledRoute"
-              shape={{ type: "LineString", coordinates: traveledCoords }}
-            >
-              <Mapbox.LineLayer
-                id="traveledLine"
-                style={{
-                  lineColor: "gray",
-                  lineWidth: 3,
-                  lineCap: Mapbox.LineJoin.Round,
-                  lineJoin: Mapbox.LineJoin.Round,
-                }}
-                aboveLayerID="routeFill"
-              />
-            </Mapbox.ShapeSource>
-          )}
-
-          {selectedRoute &&
-            (selectedRoute.geometry.coordinates.length ?? []) > 0 && (
-              <Mapbox.ShapeSource
-                id="routeSource"
-                shape={{
-                  type: "LineString",
-                  coordinates: selectedRoute.geometry.coordinates,
-                }}
-              >
-                <Mapbox.LineLayer
-                  id="routeFill"
-                  style={{ lineColor: "blue", lineWidth: 3 }}
+                  id="traveledLine"
+                  style={{
+                    lineColor: "gray",
+                    lineWidth: 3,
+                    lineCap: Mapbox.LineJoin.Round,
+                    lineJoin: Mapbox.LineJoin.Round,
+                  }}
+                  aboveLayerID="routeFill"
                 />
               </Mapbox.ShapeSource>
             )}
 
-          {selectedLocation && (
-            <PointAnnotation
-              id="selectedLocation"
-              coordinate={[
-                selectedLocation.longitude,
-                selectedLocation.latitude,
-              ]}
-            >
-              <View />
-            </PointAnnotation>
-          )}
+            {selectedRoute &&
+              (selectedRoute.geometry.coordinates.length ?? []) > 0 && (
+                <Mapbox.ShapeSource
+                  id="routeSource"
+                  shape={{
+                    type: "LineString",
+                    coordinates: selectedRoute.geometry.coordinates,
+                  }}
+                >
+                  <Mapbox.LineLayer
+                    id="routeFill"
+                    style={{ lineColor: "blue", lineWidth: 3 }}
+                  />
+                </Mapbox.ShapeSource>
+              )}
 
-          <LocationPuck />
-        </MapView>
+            {selectedLocation && (
+              <PointAnnotation
+                id="selectedLocation"
+                coordinate={[
+                  selectedLocation.longitude,
+                  selectedLocation.latitude,
+                ]}
+              >
+                <View />
+              </PointAnnotation>
+            )}
+
+            <LocationPuck />
+          </MapView>
+        </View>
+
+        <MapboxSearchBar
+          selectedLocation={selectedLocation}
+          onSelectLocation={(location) => setSelectedLocation(location)}
+        />
+
+        <ItinerarySelect
+          selectedRoute={selectedRoute}
+          alternateRoutes={alternateRoutes}
+          chooseRoute={chooseRoute}
+          onBack={() => {
+            setSelectedLocation(null);
+            setSelectedRoute(null);
+            setAlternateRoutes([]);
+          }}
+          onStartNavigation={() => {
+            startNavigation();
+          }}
+          onPlanLater={() => {
+            setSelectedLocation(null);
+            setSelectedRoute(null);
+            setAlternateRoutes([]);
+          }}
+        />
+
+        {/* Settings Button and Modal */}
+        <SettingsButton
+          onPress={toggleSettings}
+          style={{ bottom: isNavigating ? 130 : 10 }}
+        />
+        <SettingsModal
+          isVisible={isSettingsVisible}
+          onClose={() => setIsSettingsVisible(false)}
+          toLogin={() => {
+            if (pathname == "/auth") return;
+            router.push("/auth");
+          }}
+        />
+        {isNavigating && selectedRoute && (
+          <>
+            <NavigationCard
+              route={selectedRoute}
+              instruction={currentInstruction}
+            />
+            <NavigationControlCard
+              route={selectedRoute}
+              onCancelNavigation={() => {
+                stopNavigation();
+                setSelectedLocation(null);
+                setSelectedRoute(null);
+                setAlternateRoutes([]);
+              }}
+            />
+          </>
+        )}
       </View>
-
-      <MapboxSearchBar
-        selectedLocation={selectedLocation}
-        onSelectLocation={(location) => setSelectedLocation(location)}
-      />
-
-      <ItinerarySelect
-        selectedRoute={selectedRoute}
-        alternateRoutes={alternateRoutes}
-        chooseRoute={chooseRoute}
-        onBack={() => {
-          setSelectedLocation(null);
-          setSelectedRoute(null);
-          setAlternateRoutes([]);
-        }}
-        // onStartNavigation={startNavigation}
-      />
-
-      {/* Settings Button and Modal */}
-      <SettingsButton onPress={toggleSettings} />
-      <SettingsModal
-        isVisible={isSettingsVisible}
-        onClose={() => setIsSettingsVisible(false)}
-        toLogin={() => {
-          if (pathname == "/auth") return;
-          router.push("/auth");
-        }}
-      />
-    </View>
+    </>
   );
 };
 

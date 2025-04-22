@@ -18,6 +18,7 @@ interface RouteHookReturn {
   isNavigating: boolean;
   startNavigation: () => void;
   stopNavigation: () => void;
+  currentInstruction: string;
 }
 
 const MAX_DEVIATION_DISTANCE = 50;
@@ -50,6 +51,7 @@ const useRoute = (
     null
   );
   const [isNavigating, setIsNavigating] = useState<boolean>(false);
+  const [currentInstruction, setCurrentInstruction] = useState<string>("");
 
   const chooseRoute = (newRoute: Route, prevSelectedRoute: Route | null) => {
     console.log(
@@ -267,9 +269,33 @@ const useRoute = (
         );
 
         if (index !== -1) {
-          setTraveledCoords(
-            selectedRoute.geometry.coordinates.slice(0, index + 1)
+          const newTraveledCoords = selectedRoute.geometry.coordinates.slice(
+            0,
+            index + 1
           );
+          setTraveledCoords(newTraveledCoords);
+
+          // Update current instruction
+          if (selectedRoute.legs && selectedRoute.legs.length > 0) {
+            const currentLeg = selectedRoute.legs[0];
+            if (currentLeg.steps && currentLeg.steps.length > 0) {
+              // Find the step that corresponds to the current index
+              const currentStep = currentLeg.steps.find((step) => {
+                const stepIndex = selectedRoute.geometry.coordinates.findIndex(
+                  (coord) =>
+                    coord[0] === step.geometry.coordinates[0][0] &&
+                    coord[1] === step.geometry.coordinates[0][1]
+                );
+                return stepIndex === index;
+              });
+
+              if (currentStep) {
+                setCurrentInstruction(
+                  currentStep.maneuver?.instruction || "Continue straight"
+                );
+              }
+            }
+          }
         }
       } else {
         console.log("Driver deviated, recalculating route...");
@@ -297,8 +323,19 @@ const useRoute = (
     error,
     liveUserLocation,
     isNavigating,
-    startNavigation: () => setIsNavigating(true),
+    startNavigation: () => {
+      setIsNavigating(true);
+      // Set initial instruction from the first step
+      if (selectedRoute?.legs?.[0]?.steps?.[0]?.maneuver?.instruction) {
+        setCurrentInstruction(
+          selectedRoute.legs[0].steps[0].maneuver.instruction
+        );
+      } else {
+        setCurrentInstruction("Starting navigation");
+      }
+    },
     stopNavigation: () => setIsNavigating(false),
+    currentInstruction: currentInstruction,
   };
 };
 
