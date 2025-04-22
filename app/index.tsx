@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import { StyleSheet, View } from "react-native";
 import SettingsButton from "@/components/settings/SettingsButton";
 import SettingsModal from "@/components/settings/SettingsModal";
@@ -13,19 +19,22 @@ import MapboxSearchBar from "@/components/mapbox/MapboxSearchBar";
 import QRScanButton from "@/components/mapbox/QRScanButton";
 import useRoute from "@/hooks/useRoute";
 import ItinerarySelect from "@/components/mapbox/ItinerarySelect";
-import { usePathname, useRouter, useLocalSearchParams } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import NavigationCard from "@/components/mapbox/NavigationCard";
 import NavigationControlCard from "@/components/mapbox/NavigationControlCard";
+import { useQRCode } from "@/providers/QRCodeProvider";
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_SK as string);
 
 const Map = () => {
   const router = useRouter();
   const pathname = usePathname();
-  const params = useLocalSearchParams();
-  
-  // Ref to track if initial QR params have been processed
-  const initialQrParamsProcessed = useRef(false);
+
+  // Use QR code context instead of URL params
+  const { qrData, setQRData } = useQRCode();
+
+  // Flag to track if QR data was processed
+  const qrDataProcessed = useRef(false);
 
   const [selectedLocation, setSelectedLocation] = useState<{
     latitude: number;
@@ -43,15 +52,22 @@ const Map = () => {
 
   const fetchUserLocation = async () => {
     try {
+      console.log("Fetching user location...");
       const location = await Mapbox.locationManager.getLastKnownLocation();
       if (location) {
+        console.log("User location found:", {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        });
         setCurrUserLocation({
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
         });
+      } else {
+        console.log("User location not available");
       }
     } catch (error) {
-      console.log(error);
+      console.error("Error fetching user location:", error);
     }
   };
 
@@ -60,37 +76,16 @@ const Map = () => {
     fetchUserLocation();
   }, []);
 
-  // Process URL parameters if they exist and haven't been processed yet
+  // Reset QR data processed flag when QR data is null
   useEffect(() => {
-    if (
-      params.qrScanned === 'true' && 
-      params.fromLng && 
-      params.fromLat && 
-      params.toLng && 
-      params.toLat && 
-      !initialQrParamsProcessed.current
-    ) {
-      initialQrParamsProcessed.current = true;
-      
-      // Set destination from QR code
-      setSelectedLocation({
-        latitude: Number(params.toLat),
-        longitude: Number(params.toLng),
-      });
-      
-      // If QR code includes a specific origin different from user's location
-      // Note: We might want to add UI to ask if user wants to use their current location or the QR origin
-      if (params.fromLng !== undefined && params.fromLat !== undefined) {
-        setCurrUserLocation({
-          latitude: Number(params.fromLat),
-          longitude: Number(params.fromLng),
-        });
-      }
+    if (!qrData) {
+      qrDataProcessed.current = false;
     }
-  }, [params, currUserLocation]);
+  }, [qrData]);
 
   useEffect(() => {
     if (selectedLocation) {
+      console.log("Selected location changed, fetching user location");
       fetchUserLocation();
     }
   }, [selectedLocation]);
@@ -105,7 +100,7 @@ const Map = () => {
         : null,
     [currUserLocation]
   );
-  
+
   const destination = useMemo(
     () =>
       selectedLocation
@@ -116,14 +111,6 @@ const Map = () => {
         : null,
     [selectedLocation]
   );
-
-  // Parse excludes from QR code params
-  const routeExcludes = useMemo(() => {
-    if (params.excludes && typeof params.excludes === 'string') {
-      return params.excludes.split(',');
-    }
-    return undefined;
-  }, [params.excludes]);
 
   const {
     selectedRoute,
@@ -141,13 +128,45 @@ const Map = () => {
     currentInstruction,
     setRouteExcludes,
   } = useRoute(origin, destination);
-  
-  // Pass route excludes to useRoute
+
+  // Process QR code data if available
   useEffect(() => {
-    if (routeExcludes) {
-      setRouteExcludes(routeExcludes);
+    if (qrData && !qrDataProcessed.current) {
+      console.log("Processing QR code data:", qrData);
+      qrDataProcessed.current = true;
+
+      // Reset any existing routes
+      setSelectedRoute(null);
+      setAlternateRoutes([]);
+
+      // Set the destination from QR code
+      if (qrData.toCoords) {
+        console.log("Setting destination from QR code:", qrData.toCoords);
+        setSelectedLocation({
+          latitude: qrData.toCoords[1],
+          longitude: qrData.toCoords[0],
+        });
+      }
+
+      // Set route excludes if present
+      if (qrData.excludes && qrData.excludes.length > 0) {
+        console.log("Setting excludes from QR code:", qrData.excludes);
+        setRouteExcludes(qrData.excludes);
+      } else {
+        // Reset to user preferences if no excludes in QR
+        console.log("No excludes in QR code, using user preferences");
+        setRouteExcludes(undefined);
+      }
+
+      // Refresh user location
+      fetchUserLocation();
+
+      // Clear QR data to prevent reprocessing
+      setTimeout(() => {
+        setQRData(null);
+      }, 1000);
     }
-  }, [routeExcludes, setRouteExcludes]);
+  }, [qrData, setRouteExcludes, setQRData]);
 
   // Toggle settings modal
   const toggleSettings = useCallback(() => {
@@ -156,8 +175,51 @@ const Map = () => {
 
   // Handle QR code button press
   const handleQRScan = () => {
-    router.push({ pathname: "/qr-scanner" as any /* Type assertion to bypass type checking */ });
+    router.push({
+      pathname:
+        "/qr-scanner" as any /* Type assertion to bypass type checking */,
+    });
   };
+
+  // Clear route flag when canceling navigation
+  const handleCancelNavigation = useCallback(() => {
+    stopNavigation();
+    setSelectedLocation(null);
+    setSelectedRoute(null);
+    setAlternateRoutes([]);
+    // Clear QR data
+    setQRData(null);
+    qrDataProcessed.current = false;
+  }, [stopNavigation, setQRData]);
+
+  // Force route calculation when QR code is processed and we have coordinates
+  useEffect(() => {
+    if (qrDataProcessed.current && currUserLocation && selectedLocation) {
+      console.log("Ready to calculate route after QR code scan:");
+      console.log("- Origin:", [
+        currUserLocation.longitude,
+        currUserLocation.latitude,
+      ]);
+      console.log("- Destination:", [
+        selectedLocation.longitude,
+        selectedLocation.latitude,
+      ]);
+
+      // At this point, we should have everything needed for route calculation
+      // The route calculation is normally triggered by changes to origin/destination
+      // in the useRoute hook, but we'll force a refresh of those values here:
+
+      // Create a slight delay to ensure all state updates have propagated
+      setTimeout(() => {
+        // Force a recalculation by creating new coordinate objects
+        const refreshedOrigin = {
+          latitude: currUserLocation.latitude,
+          longitude: currUserLocation.longitude,
+        };
+        setCurrUserLocation(refreshedOrigin);
+      }, 500);
+    }
+  }, [qrDataProcessed.current, currUserLocation, selectedLocation]);
 
   return (
     <>
@@ -284,10 +346,10 @@ const Map = () => {
           selectedLocation={selectedLocation}
           onSelectLocation={(location) => setSelectedLocation(location)}
         />
-        
+
         {/* QR Code Scan Button */}
-        <QRScanButton 
-          onPress={handleQRScan} 
+        <QRScanButton
+          onPress={handleQRScan}
           style={{ top: 100 }} // Position below search bar
         />
 
@@ -299,9 +361,9 @@ const Map = () => {
             setSelectedLocation(null);
             setSelectedRoute(null);
             setAlternateRoutes([]);
-            // Clear URL params when canceling
-            router.setParams({});
-            initialQrParamsProcessed.current = false;
+            // Clear QR data
+            setQRData(null);
+            qrDataProcessed.current = false;
           }}
           onStartNavigation={() => {
             startNavigation();
@@ -310,9 +372,9 @@ const Map = () => {
             setSelectedLocation(null);
             setSelectedRoute(null);
             setAlternateRoutes([]);
-            // Clear URL params when canceling
-            router.setParams({});
-            initialQrParamsProcessed.current = false;
+            // Clear QR data
+            setQRData(null);
+            qrDataProcessed.current = false;
           }}
         />
 
@@ -337,15 +399,7 @@ const Map = () => {
             />
             <NavigationControlCard
               route={selectedRoute}
-              onCancelNavigation={() => {
-                stopNavigation();
-                setSelectedLocation(null);
-                setSelectedRoute(null);
-                setAlternateRoutes([]);
-                // Clear URL params when canceling navigation
-                router.setParams({});
-                initialQrParamsProcessed.current = false;
-              }}
+              onCancelNavigation={handleCancelNavigation}
             />
           </>
         )}

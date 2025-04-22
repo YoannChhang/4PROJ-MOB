@@ -26,7 +26,6 @@ const QRCodeScanner: React.FC<QRCodeScannerProps> = ({ onCodeScanned, onCancel }
     setScanned(true);
     // Only handle URLs that match our expected format and contain required parameters
     if (data.startsWith('https://mayz.com/route?') && 
-        data.includes('from=') && 
         data.includes('to=')) {
       console.log('Valid QR code format detected:', data);
       onCodeScanned(data);

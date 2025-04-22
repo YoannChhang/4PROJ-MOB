@@ -89,18 +89,21 @@ const useRoute = (
       let exclude: string[] = [];
       let urls: { url: string; label: string }[] = [];
 
-      // Check for routing preferences from user data
-      const avoidTolls =
-        preferences.find((p) => p.id === "avoid_tolls")?.enabled || false;
-      const avoidHighways =
-        preferences.find((p) => p.id === "avoid_highways")?.enabled || false;
-      const avoidUnpaved =
-        preferences.find((p) => p.id === "avoid_unpaved")?.enabled || false;
-
-      // Apply QR code excludes if present, otherwise use user preferences
+      // IMPORTANT: Check if QR code provided excludes - these take precedence
       if (routeExcludes && routeExcludes.length > 0) {
+        // Use QR code excludes directly
         exclude = [...routeExcludes];
+        console.log('Using QR code excludes:', exclude);
       } else {
+        // Otherwise, fall back to user preferences
+        console.log('Using user preferences for routing');
+        const avoidTolls =
+          preferences.find((p) => p.id === "avoid_tolls")?.enabled || false;
+        const avoidHighways =
+          preferences.find((p) => p.id === "avoid_highways")?.enabled || false;
+        const avoidUnpaved =
+          preferences.find((p) => p.id === "avoid_unpaved")?.enabled || false;
+
         // Apply user preferences
         if (avoidTolls) exclude.push("toll");
         if (avoidHighways) exclude.push("motorway");
@@ -207,6 +210,22 @@ const useRoute = (
 
       setTraveledCoords([]); // Reset traveled route
     } catch (err) {
+      console.error('Error in fetchRoute:', err);
+      // Log detailed error information to help debugging
+      if (err instanceof Error) {
+        console.error('Error message:', err.message);
+        console.error('Error stack:', err.stack);
+      }
+      
+      // Check for common issues
+      if (!origin || !destination) {
+        console.error('Missing coordinates:', { origin, destination });
+      }
+      
+      if (!Array.isArray(origin) || !Array.isArray(destination)) {
+        console.error('Invalid coordinate format:', { origin, destination });
+      }
+      
       setError("Failed to fetch route.");
     } finally {
       setLoading(false);

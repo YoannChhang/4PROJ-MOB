@@ -17,6 +17,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { LocationProvider } from "@/providers/LocationProvider";
 import { UserProvider } from "@/providers/UserProvider";
+import { QRCodeProvider } from "@/providers/QRCodeProvider";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -39,26 +40,26 @@ export default function RootLayout() {
   }
 
   return (
-    // <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
     <PaperProvider
       theme={colorScheme === "dark" ? CustomDarkTheme : CustomLightTheme}
     >
       <UserProvider>
-        <LocationProvider>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <BottomSheetModalProvider>
-              <Stack>
-                <Stack.Screen name="index" options={{ headerShown: false }} />
-                <Stack.Screen name="auth" options={{ headerShown: false }} />
-                <Stack.Screen name="qr-scanner" options={{ headerShown: false }} />
-                <Stack.Screen name="+not-found" />
-              </Stack>
-              <StatusBar style="auto" />
-            </BottomSheetModalProvider>
-          </GestureHandlerRootView>
-        </LocationProvider>
+        <QRCodeProvider>
+          <LocationProvider>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <BottomSheetModalProvider>
+                <Stack>
+                  <Stack.Screen name="index" options={{ headerShown: false }} />
+                  <Stack.Screen name="auth" options={{ headerShown: false }} />
+                  <Stack.Screen name="+not-found" />
+                  <Stack.Screen name="qr-scanner" options={{ headerShown: false }} />
+                </Stack>
+                <StatusBar style="auto" />
+              </BottomSheetModalProvider>
+            </GestureHandlerRootView>
+          </LocationProvider>
+        </QRCodeProvider>
       </UserProvider>
     </PaperProvider>
-    // </ThemeProvider>
   );
 }

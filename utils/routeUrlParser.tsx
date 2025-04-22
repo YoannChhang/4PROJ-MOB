@@ -2,12 +2,11 @@
  * Parses a route URL from QR code into a structured object
  * 
  * Example URL formats:
- * https://mayz.com/route?from=2.348392;48.853495&to=5.377085;43.294235&exclude=motorway,toll,ferry
- * https://mayz.com/route?from=2.348392;48.853495&to=5.377085;43.294235
+ * https://mayz.com/route?to=5.377085;43.294235&exclude=motorway,toll,ferry
+ * https://mayz.com/route?to=5.377085;43.294235
  */
 
 export interface ParsedRouteParams {
-  fromCoords: [number, number] | null; // [longitude, latitude]
   toCoords: [number, number] | null;   // [longitude, latitude]
   excludes?: string[];
   isValid: boolean;
@@ -16,7 +15,6 @@ export interface ParsedRouteParams {
 export const parseRouteUrl = (url: string): ParsedRouteParams => {
   // Default return with invalid state
   const defaultResponse: ParsedRouteParams = {
-    fromCoords: null,
     toCoords: null,
     isValid: false
   };
@@ -31,17 +29,10 @@ export const parseRouteUrl = (url: string): ParsedRouteParams => {
     const urlObj = new URL(url);
     const params = new URLSearchParams(urlObj.search);
     
-    // Parse coordinates
-    const fromParam = params.get('from');
+    // Parse to coordinates
     const toParam = params.get('to');
     
-    if (!fromParam || !toParam) {
-      return defaultResponse;
-    }
-    
-    // Parse from coordinates (longitude;latitude format)
-    const fromCoords = fromParam.split(';').map(Number);
-    if (fromCoords.length !== 2 || isNaN(fromCoords[0]) || isNaN(fromCoords[1])) {
+    if (!toParam) {
       return defaultResponse;
     }
     
@@ -59,7 +50,6 @@ export const parseRouteUrl = (url: string): ParsedRouteParams => {
     }
     
     return {
-      fromCoords: [fromCoords[0], fromCoords[1]],
       toCoords: [toCoords[0], toCoords[1]],
       excludes,
       isValid: true

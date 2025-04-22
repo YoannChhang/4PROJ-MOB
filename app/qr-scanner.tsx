@@ -3,9 +3,11 @@ import { StyleSheet, View, Alert } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import QRCodeScanner from '@/components/QRCodeScanner';
 import { parseRouteUrl } from '@/utils/routeUrlParser';
+import { useQRCode } from '@/providers/QRCodeProvider';
 
 export default function QRScannerScreen() {
   const router = useRouter();
+  const { setQRData } = useQRCode();
 
   const handleCodeScanned = (data: string) => {
     console.log('QR code scanned:', data);
@@ -13,25 +15,20 @@ export default function QRScannerScreen() {
     // Parse the URL from the QR code
     const parsedRoute = parseRouteUrl(data);
     
-    if (parsedRoute.isValid && parsedRoute.fromCoords && parsedRoute.toCoords) {
+    if (parsedRoute.isValid && parsedRoute.toCoords) {
       console.log('Valid route found with parameters:', {
-        from: parsedRoute.fromCoords,
         to: parsedRoute.toCoords,
         excludes: parsedRoute.excludes
       });
       
-      // Create the route params
-      const routeParams = {
-        fromLng: parsedRoute.fromCoords[0],
-        fromLat: parsedRoute.fromCoords[1],
-        toLng: parsedRoute.toCoords[0],
-        toLat: parsedRoute.toCoords[1],
-        excludes: parsedRoute.excludes ? parsedRoute.excludes.join(',') : undefined,
-        qrScanned: 'true' // Flag to indicate this came from QR scan
-      };
+      // Store the data in context instead of URL params
+      setQRData({
+        toCoords: parsedRoute.toCoords,
+        excludes: parsedRoute.excludes,
+        timestamp: Date.now()
+      });
       
-      // Set parameters and go back instead of pushing a new screen
-      router.setParams(routeParams as any);
+      // Simply go back without params
       router.back();
     } else {
       // Show an alert for invalid QR codes
