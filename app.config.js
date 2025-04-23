@@ -26,6 +26,9 @@ export default ({ config }) => ({
     plugins: [
       "expo-router",
       [
+        "expo-barcode-scanner"
+      ],
+      [
         "expo-splash-screen",
         {
           image: "./assets/images/splash-icon.png",
