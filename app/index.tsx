@@ -5,7 +5,11 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { StyleSheet, View } from "react-native";
+import { 
+  StyleSheet, 
+  View, 
+  Dimensions
+} from "react-native";
 import SettingsButton from "@/components/settings/SettingsButton";
 import SettingsModal from "@/components/settings/SettingsModal";
 import Mapbox, {
@@ -23,18 +27,19 @@ import { usePathname, useRouter } from "expo-router";
 import NavigationCard from "@/components/mapbox/NavigationCard";
 import NavigationControlCard from "@/components/mapbox/NavigationControlCard";
 import { useQRCode } from "@/providers/QRCodeProvider";
-import { PinProvider, usePins } from "@/providers/PinProvider";
+import { usePins } from "@/providers/PinProvider";
 import AlertPin from "@/components/mapbox/AlertPin";
-import AlertCallout from "@/components/mapbox/AlertCallout";
 import ReportAlertButton from "@/components/mapbox/ReportAlertButton";
 import useAlertPins from "@/hooks/useAlertPins";
 import { PinRead } from "@/types/api";
+import PinWithCallout from "@/components/mapbox/PinWithCallout";
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_SK as string);
 
 const Map = () => {
   const router = useRouter();
   const pathname = usePathname();
+  const mapRef = useRef<MapView>(null);
 
   // Use QR code context instead of URL params
   const { qrData, setQRData } = useQRCode();
@@ -42,9 +47,15 @@ const Map = () => {
   // Flag to track if QR data was processed
   const qrDataProcessed = useRef(false);
 
-  const [selectedAlertPin, setSelectedAlertPin] = useState<PinRead | null>(
-    null
-  );
+  // Track selected alert pin
+  const [selectedPinId, setSelectedPinId] = useState<number | null>(null);
+
+  const handleMapPress = () => {
+    // Close any open callouts when tapping on the map
+    if (selectedPinId !== null) {
+      setSelectedPinId(null);
+    }
+  };
 
   const [selectedLocation, setSelectedLocation] = useState<{
     latitude: number;
@@ -193,6 +204,11 @@ const Map = () => {
     });
   };
 
+  // Handle pin selection
+  const handlePinSelected = (pin: PinRead) => {
+    setSelectedPinId(pin.id);
+  };
+
   // Clear route flag when canceling navigation
   const handleCancelNavigation = useCallback(() => {
     stopNavigation();
@@ -238,6 +254,7 @@ const Map = () => {
       <View style={styles.page}>
         <View style={styles.container}>
           <MapView
+            ref={mapRef}
             style={styles.map}
             styleURL="mapbox://styles/mapbox/navigation-night-v1"
             logoEnabled={false}
@@ -246,6 +263,7 @@ const Map = () => {
               bottom: isNavigating ? 130 : 8,
               left: 8,
             }}
+            onPress={handleMapPress}
           >
             <Camera
               animationMode="flyTo"
@@ -346,25 +364,16 @@ const Map = () => {
               </PointAnnotation>
             )}
             <LocationPuck />
-            // Add this inside your MapView component, before the closing tag
+            
+            {/* Render pins with their callouts directly attached */}
             {pins.map((pin) => (
-              <PointAnnotation
-                key={`alert-pin-${pin.id}`}
-                id={`alert-pin-${pin.id}`}
-                coordinate={[pin.longitude, pin.latitude]}
-                onSelected={() => setSelectedAlertPin(pin)}
-              >
-                <AlertPin type={pin.type} />
-
-                <>
-                  {selectedAlertPin?.id === pin.id && (
-                    <AlertCallout
-                      pin={pin}
-                      onClose={() => setSelectedAlertPin(null)}
-                    />
-                  )}
-                </>
-              </PointAnnotation>
+              <PinWithCallout
+                key={`pin-with-callout-${pin.id}`}
+                pin={pin}
+                onSelectPin={handlePinSelected}
+                isSelected={selectedPinId === pin.id}
+                onCalloutClose={() => setSelectedPinId(null)}
+              />
             ))}
           </MapView>
         </View>
@@ -448,7 +457,7 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
-  },
+  }
 });
 
 export default Map;

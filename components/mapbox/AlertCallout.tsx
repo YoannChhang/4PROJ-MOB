@@ -1,7 +1,5 @@
-// components/mapbox/AlertCallout.tsx
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { View, Text, StyleSheet } from 'react-native';
 import { PinRead } from '@/types/api';
 
 interface AlertCalloutProps {
@@ -33,9 +31,6 @@ const AlertCallout: React.FC<AlertCalloutProps> = ({ pin, onClose }) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>{TYPE_LABELS[pin.type]}</Text>
-        <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <FontAwesome5 name="times" size={16} color="#555" />
-        </TouchableOpacity>
       </View>
       
       {pin.description && (
@@ -52,47 +47,43 @@ const AlertCallout: React.FC<AlertCalloutProps> = ({ pin, onClose }) => {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: 'white',
-    borderRadius: 8,
-    padding: 12,
-    minWidth: 180,
-    maxWidth: 250,
+    borderRadius: 12,
+    padding: 16,
+    minWidth: 220,
+    maxWidth: 280,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   title: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
   },
   description: {
     fontSize: 14,
-    marginBottom: 8,
+    marginBottom: 12,
+    color: '#555',
+    lineHeight: 20,
+    textAlign: 'center',
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 4,
   },
   time: {
     fontSize: 12,
-    color: '#666',
-  },
-  upvotes: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  upvoteCount: {
-    fontSize: 12,
-    marginLeft: 4,
-    color: '#4CAF50',
+    color: '#777',
+    textAlign: 'center',
   },
 });
 
