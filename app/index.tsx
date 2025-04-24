@@ -23,6 +23,12 @@ import { usePathname, useRouter } from "expo-router";
 import NavigationCard from "@/components/mapbox/NavigationCard";
 import NavigationControlCard from "@/components/mapbox/NavigationControlCard";
 import { useQRCode } from "@/providers/QRCodeProvider";
+import { PinProvider, usePins } from "@/providers/PinProvider";
+import AlertPin from "@/components/mapbox/AlertPin";
+import AlertCallout from "@/components/mapbox/AlertCallout";
+import ReportAlertButton from "@/components/mapbox/ReportAlertButton";
+import useAlertPins from "@/hooks/useAlertPins";
+import { PinRead } from "@/types/api";
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_SK as string);
 
@@ -35,6 +41,10 @@ const Map = () => {
 
   // Flag to track if QR data was processed
   const qrDataProcessed = useRef(false);
+
+  const [selectedAlertPin, setSelectedAlertPin] = useState<PinRead | null>(
+    null
+  );
 
   const [selectedLocation, setSelectedLocation] = useState<{
     latitude: number;
@@ -128,6 +138,8 @@ const Map = () => {
     currentInstruction,
     setRouteExcludes,
   } = useRoute(origin, destination);
+
+  const { pins } = useAlertPins(currUserLocation);
 
   // Process QR code data if available
   useEffect(() => {
@@ -272,7 +284,6 @@ const Map = () => {
                   : undefined
               }
             />
-
             {!isNavigating &&
               alternateRoutes.map((route, index) => (
                 <Mapbox.ShapeSource
@@ -291,7 +302,6 @@ const Map = () => {
                   />
                 </Mapbox.ShapeSource>
               ))}
-
             {isNavigating && traveledCoords.length > 0 && (
               <Mapbox.ShapeSource
                 id="traveledRoute"
@@ -309,7 +319,6 @@ const Map = () => {
                 />
               </Mapbox.ShapeSource>
             )}
-
             {selectedRoute &&
               (selectedRoute.geometry.coordinates.length ?? []) > 0 && (
                 <Mapbox.ShapeSource
@@ -325,7 +334,6 @@ const Map = () => {
                   />
                 </Mapbox.ShapeSource>
               )}
-
             {selectedLocation && (
               <PointAnnotation
                 id="selectedLocation"
@@ -337,8 +345,27 @@ const Map = () => {
                 <View />
               </PointAnnotation>
             )}
-
             <LocationPuck />
+            // Add this inside your MapView component, before the closing tag
+            {pins.map((pin) => (
+              <PointAnnotation
+                key={`alert-pin-${pin.id}`}
+                id={`alert-pin-${pin.id}`}
+                coordinate={[pin.longitude, pin.latitude]}
+                onSelected={() => setSelectedAlertPin(pin)}
+              >
+                <AlertPin type={pin.type} />
+
+                <>
+                  {selectedAlertPin?.id === pin.id && (
+                    <AlertCallout
+                      pin={pin}
+                      onClose={() => setSelectedAlertPin(null)}
+                    />
+                  )}
+                </>
+              </PointAnnotation>
+            ))}
           </MapView>
         </View>
 
@@ -382,6 +409,7 @@ const Map = () => {
           onPress={toggleSettings}
           style={{ bottom: isNavigating ? 110 : 10 }}
         />
+        <ReportAlertButton userLocation={currUserLocation} />
         <SettingsModal
           isVisible={isSettingsVisible}
           onClose={() => setIsSettingsVisible(false)}

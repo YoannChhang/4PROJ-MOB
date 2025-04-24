@@ -18,6 +18,7 @@ import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { LocationProvider } from "@/providers/LocationProvider";
 import { UserProvider } from "@/providers/UserProvider";
 import { QRCodeProvider } from "@/providers/QRCodeProvider";
+import { PinProvider } from "@/providers/PinProvider";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -27,7 +28,6 @@ export default function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
-
 
   useEffect(() => {
     if (loaded) {
@@ -46,17 +46,19 @@ export default function RootLayout() {
       <UserProvider>
         <QRCodeProvider>
           <LocationProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <BottomSheetModalProvider>
-                <Stack>
-                  <Stack.Screen name="index" options={{ headerShown: false }} />
-                  <Stack.Screen name="auth" options={{ headerShown: false }} />
-                  <Stack.Screen name="+not-found" />
-                  <Stack.Screen name="qr-scanner" options={{ headerShown: false }} />
-                </Stack>
-                <StatusBar style="auto" />
-              </BottomSheetModalProvider>
-            </GestureHandlerRootView>
+            <PinProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <BottomSheetModalProvider>
+                  <Stack>
+                    <Stack.Screen name="index" options={{ headerShown: false }} />
+                    <Stack.Screen name="auth" options={{ headerShown: false }} />
+                    <Stack.Screen name="+not-found" />
+                    <Stack.Screen name="qr-scanner" options={{ headerShown: false }} />
+                  </Stack>
+                  <StatusBar style="auto" />
+                </BottomSheetModalProvider>
+              </GestureHandlerRootView>
+            </PinProvider>
           </LocationProvider>
         </QRCodeProvider>
       </UserProvider>
