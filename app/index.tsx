@@ -33,6 +33,7 @@ import ReportAlertButton from "@/components/mapbox/ReportAlertButton";
 import useAlertPins from "@/hooks/useAlertPins";
 import { PinRead } from "@/types/api";
 import PinWithCallout from "@/components/mapbox/PinWithCallout";
+import { useUser } from "@/providers/UserProvider";
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_SK as string);
 
@@ -40,6 +41,7 @@ const Map = () => {
   const router = useRouter();
   const pathname = usePathname();
   const mapRef = useRef<MapView>(null);
+  const { isSignedIn } = useUser(); // Add this to detect auth state changes
 
   // Use QR code context instead of URL params
   const { qrData, setQRData } = useQRCode();
@@ -96,6 +98,18 @@ const Map = () => {
     Mapbox.setTelemetryEnabled(false);
     fetchUserLocation();
   }, []);
+
+  // Fetch pins when auth state changes if we have user location
+  useEffect(() => {
+    console.log("Auth state changed:", isSignedIn ? "Signed In" : "Signed Out");
+    if (currUserLocation) {
+      // This will trigger a pin refresh through the useAlertPins hook
+      const refreshLocation = {
+        ...currUserLocation
+      };
+      setCurrUserLocation(refreshLocation);
+    }
+  }, [isSignedIn]);
 
   // Reset QR data processed flag when QR data is null
   useEffect(() => {

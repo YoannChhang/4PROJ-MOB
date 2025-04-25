@@ -1,6 +1,7 @@
 // hooks/useAlertPins.tsx
 import { useState, useEffect, useRef } from 'react';
 import { usePins } from '@/providers/PinProvider';
+import { useUser } from '@/providers/UserProvider';
 
 // Minimum distance (in meters) the user needs to move before updating pins
 const LOCATION_THRESHOLD = 200;
@@ -9,6 +10,7 @@ const POLLING_INTERVAL = 30000; // 30 seconds
 
 export default function useAlertPins(userLocation: { longitude: number; latitude: number } | null) {
   const { fetchPins, pins } = usePins();
+  const { isSignedIn } = useUser(); // Add this to detect auth state changes
   const lastFetchedLocation = useRef<{ longitude: number; latitude: number } | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -30,6 +32,21 @@ export default function useAlertPins(userLocation: { longitude: number; latitude
     return R * c;
   };
   
+  // Function to load pins that can be called on auth change
+  const loadPins = async () => {
+    if (!userLocation) return;
+    
+    try {
+      await fetchPins(userLocation.longitude, userLocation.latitude);
+      lastFetchedLocation.current = { 
+        longitude: userLocation.longitude, 
+        latitude: userLocation.latitude 
+      };
+    } catch (error) {
+      console.error('Failed to load pins:', error);
+    }
+  };
+  
   // Fetch pins when location changes significantly
   useEffect(() => {
     if (!userLocation) return;
@@ -47,15 +64,6 @@ export default function useAlertPins(userLocation: { longitude: number; latitude
       if (distance < LOCATION_THRESHOLD) return;
     }
     
-    const loadPins = async () => {
-      try {
-        await fetchPins(longitude, latitude);
-        lastFetchedLocation.current = { longitude, latitude };
-      } catch (error) {
-        console.error('Failed to load pins:', error);
-      }
-    };
-    
     loadPins();
     
     // Clear previous interval if it exists
@@ -72,6 +80,15 @@ export default function useAlertPins(userLocation: { longitude: number; latitude
       }
     };
   }, [userLocation, fetchPins]);
+  
+  // Add effect to refresh pins when auth state changes
+  useEffect(() => {
+    // Only trigger refresh if user location is available
+    if (userLocation) {
+      console.log('Auth state changed, refreshing pins');
+      loadPins();
+    }
+  }, [isSignedIn]); // This will trigger when login/logout occurs
   
   return { pins };
 }
