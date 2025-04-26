@@ -377,18 +377,18 @@ const Map = () => {
                 <View />
               </PointAnnotation>
             )}
-            <LocationPuck />
             
             {/* Render pins with their callouts directly attached */}
             {pins.map((pin) => (
               <PinWithCallout
-                key={`pin-with-callout-${pin.id}`}
-                pin={pin}
-                onSelectPin={handlePinSelected}
-                isSelected={selectedPinId === pin.id}
-                onCalloutClose={() => setSelectedPinId(null)}
+              key={`pin-with-callout-${pin.id}`}
+              pin={pin}
+              onSelectPin={handlePinSelected}
+              isSelected={selectedPinId === pin.id}
+              onCalloutClose={() => setSelectedPinId(null)}
               />
             ))}
+            <LocationPuck />
           </MapView>
         </View>
 
