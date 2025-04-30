@@ -5,7 +5,9 @@ import {
   UserPreferences, 
   LoginInput, 
   RegisterInput, 
-  RoleEnum
+  RoleEnum,
+  PinType,
+  PinRead,
 } from "@/types/api";
 
 export const api = axios.create({
@@ -46,8 +48,10 @@ api.interceptors.response.use(
 // Set authentication token for all future requests
 export const setAuthToken = (token: string | undefined) => {
   if (token) {
+    console.log('Setting auth token for API requests');
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   } else {
+    console.log('Removing auth token from API requests');
     delete api.defaults.headers.common['Authorization'];
   }
 };
@@ -107,3 +111,43 @@ export const assignRole = (userId: string, role: RoleEnum): Promise<ApiResponse<
 // Update user preferences
 export const updateUserPreferences = (preferences: UserPreferences): Promise<ApiResponse<User>> => 
   api.post('/user/update', { preferences });
+
+// PIN MANAGEMENT ENDPOINTS
+export interface PinCreate {
+  longitude: number;
+  latitude: number;
+  type: PinType;
+  description?: string;
+}
+
+export interface PinQuery {
+  longitude: number;
+  latitude: number;
+  radius_km: number;
+  include_deleted?: boolean;
+}
+
+// Fetch pins nearby user location
+export const fetchNearbyPins = async (
+  longitude: number,
+  latitude: number,
+  radiusKm: number = 10
+): Promise<ApiResponse<PinRead[]>> => {
+  // Log the auth header for debugging
+  const authHeader = api.defaults.headers.common['Authorization'];
+  console.log(`Fetching pins with auth: ${authHeader ? 'YES' : 'NO'}`);
+  
+  return api.post('/pins/nearby', {
+    longitude,
+    latitude,
+    radius_km: radiusKm
+  } as PinQuery);
+};
+
+// Create a new pin
+export const createPin = async (pinData: PinCreate): Promise<ApiResponse<PinRead>> =>
+  api.post('/pins/', pinData);
+
+// Delete a pin
+export const deletePin = async (pinId: number): Promise<ApiResponse<PinRead>> =>
+  api.delete(`/pins/${pinId}`);

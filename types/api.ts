@@ -58,3 +58,18 @@ export interface ApiResponse<T> {
   message: string;
   status: string;
 }
+
+export type PinType = 'obstacle' | 'traffic_jam' | 'cop' | 'accident' | 'roadwork';
+
+export interface PinRead {
+  id: number;
+  longitude: number;
+  latitude: number;
+  type: PinType;
+  description?: string | null;
+  upvote: number;
+  created_at: string;
+  user: User;
+  deleted_at?: string | null;
+  deleted_by_id?: string | null;
+}

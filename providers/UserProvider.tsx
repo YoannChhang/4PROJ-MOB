@@ -180,10 +180,13 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const afterSignIn = (res: ApiResponse<any>) => {
     // Extract token from response
     const token = res.data?.access_token || "";
-    setBearerToken(token);
-
+    console.log("Sign in successful, setting bearer token");
+    
     // Set the token for all future API requests
     setAuthToken(token);
+    
+    // Update the state - this will trigger the isSignedIn effect in useAlertPins
+    setBearerToken(token);
 
     // Fetch complete user profile from backend
     getCurrentUser()
@@ -269,7 +272,10 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
     try {
       setIsLoading(true);
+      console.log("Signing out, clearing auth token");
       await GoogleSignin.signOut();
+      
+      // Update user data and clear token - this will trigger the isSignedIn effect in useAlertPins
       setUserData({
         preferences: {
           avoid_tolls: false,
@@ -278,9 +284,12 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
           avoid_unpaved: false,
         },
       } as User);
-      setBearerToken(undefined);
+      
       // Clear the auth token from API headers
       setAuthToken(undefined);
+      
+      // Update state after token is cleared from API headers
+      setBearerToken(undefined);
     } catch (error) {
       console.error("Error signing out:", error);
     } finally {
