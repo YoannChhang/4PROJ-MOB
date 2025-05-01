@@ -4,6 +4,7 @@ import MapboxGL from "@rnmapbox/maps";
 import { MapboxDirectionsResponse, Route } from "@/types/mapbox";
 import { RoutingPreference } from "@/components/settings/RoutingPreferences";
 import { useUser } from "@/providers/UserProvider";
+import Config from "react-native-config";
 
 interface RouteHookReturn {
   selectedRoute: Route | null;
@@ -82,7 +83,7 @@ const useRoute = (
       )};${end.join(
         ","
       )}?geometries=geojson&overview=full&alternatives=true&steps=true&language=fr&banner_instructions=true&voice_instructions=true&voice_units=metric&access_token=${
-        process.env.EXPO_PUBLIC_MAPBOX_SK
+        Config.EXPO_PUBLIC_MAPBOX_PK
       }`;
 
       // Apply routing preferences to create different URLs

@@ -19,8 +19,9 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
+import Config from "react-native-config";
 
-const MAPBOX_ACCESS_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_SK as string;
+const MAPBOX_ACCESS_TOKEN = Config.EXPO_PUBLIC_MAPBOX_PK as string;
 
 const searchClient = new SearchBoxCore({
   accessToken: MAPBOX_ACCESS_TOKEN,

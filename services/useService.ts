@@ -9,9 +9,10 @@ import {
   PinType,
   PinRead,
 } from "@/types/api";
+import Config from "react-native-config";
 
 export const api = axios.create({
-  baseURL: process.env.EXPO_PUBLIC_API_URL,
+  baseURL: Config.EXPO_PUBLIC_API_URL,
   timeout: 10000,
   headers: {
     "Content-Type": "application/json",

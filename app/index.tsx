@@ -34,8 +34,9 @@ import useAlertPins from "@/hooks/useAlertPins";
 import { PinRead } from "@/types/api";
 import PinInfoModal from "@/components/mapbox/PinInfoModal";
 import { useUser } from "@/providers/UserProvider";
+import Config from "react-native-config";
 
-Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_SK as string);
+Mapbox.setAccessToken(Config.EXPO_PUBLIC_MAPBOX_PK as string);
 
 const Map = () => {
   const router = useRouter();

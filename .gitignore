@@ -36,10 +36,13 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env.*
 
 # typescript
 *.tsbuildinfo
 
 app-example
 
+# react-native-config codegen
+ios/tmp.xcconfig
 repomix-output.*
