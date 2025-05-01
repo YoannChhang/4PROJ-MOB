@@ -8,6 +8,7 @@ export default ({ config }) => ({
     scheme: "myapp",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
+    platforms: ["ios", "android"],
     ios: {
       supportsTablet: true,
     },
@@ -25,9 +26,7 @@ export default ({ config }) => ({
     },
     plugins: [
       "expo-router",
-      [
-        "expo-barcode-scanner"
-      ],
+      ["expo-barcode-scanner"],
       [
         "expo-splash-screen",
         {
