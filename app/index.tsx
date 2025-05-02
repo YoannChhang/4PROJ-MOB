@@ -5,11 +5,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { 
-  StyleSheet, 
-  View, 
-  Dimensions
-} from "react-native";
+import { StyleSheet, View } from "react-native";
 import SettingsButton from "@/components/settings/SettingsButton";
 import SettingsModal from "@/components/settings/SettingsModal";
 import Mapbox, {
@@ -27,7 +23,6 @@ import { usePathname, useRouter } from "expo-router";
 import NavigationCard from "@/components/mapbox/NavigationCard";
 import NavigationControlCard from "@/components/mapbox/NavigationControlCard";
 import { useQRCode } from "@/providers/QRCodeProvider";
-import { usePins } from "@/providers/PinProvider";
 import SimplifiedAlertPin from "@/components/mapbox/SimplifiedAlertPin";
 import ReportAlertButton from "@/components/mapbox/ReportAlertButton";
 import useAlertPins from "@/hooks/useAlertPins";
@@ -36,7 +31,7 @@ import PinInfoModal from "@/components/mapbox/PinInfoModal";
 import { useUser } from "@/providers/UserProvider";
 import Config from "react-native-config";
 
-Mapbox.setAccessToken(Config.EXPO_PUBLIC_MAPBOX_PK as string);
+Mapbox.setAccessToken(Config.MAPBOX_PK as string);
 
 const Map = () => {
   const router = useRouter();
@@ -74,30 +69,44 @@ const Map = () => {
   // Settings modal state
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
 
-  const fetchUserLocation = async () => {
-    try {
-      console.log("Fetching user location...");
-      const location = await Mapbox.locationManager.getLastKnownLocation();
-      if (location) {
-        console.log("User location found:", {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        });
-        setCurrUserLocation({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        });
-      } else {
-        console.log("User location not available");
-      }
-    } catch (error) {
-      console.error("Error fetching user location:", error);
-    }
-  };
-
+  // Initialize Mapbox and fetch user location
   useEffect(() => {
-    Mapbox.setTelemetryEnabled(false);
-    fetchUserLocation();
+    const initializeMapbox = async () => {
+      try {
+        // Disable telemetry for privacy
+        Mapbox.setTelemetryEnabled(false);
+
+        // Request permissions via the proper Mapbox API
+        const permissionsStatus =
+          await Mapbox.requestAndroidLocationPermissions();
+        console.log("Location permissions status:", permissionsStatus);
+
+        // Start location updates
+        await Mapbox.locationManager.start();
+
+        // Get initial location
+        const initialLocation =
+          await Mapbox.locationManager.getLastKnownLocation();
+        if (initialLocation) {
+          setCurrUserLocation({
+            latitude: initialLocation.coords.latitude,
+            longitude: initialLocation.coords.longitude,
+          });
+          console.log("Initial location obtained:", initialLocation.coords);
+        } else {
+          console.warn("No initial location available");
+        }
+      } catch (error) {
+        console.error("Error initializing Mapbox:", error);
+      }
+    };
+
+    initializeMapbox();
+
+    return () => {
+      // Clean up location manager when component unmounts
+      Mapbox.locationManager.stop();
+    };
   }, []);
 
   // Fetch pins when auth state changes if we have user location
@@ -106,7 +115,7 @@ const Map = () => {
     if (currUserLocation) {
       // This will trigger a pin refresh through the useAlertPins hook
       const refreshLocation = {
-        ...currUserLocation
+        ...currUserLocation,
       };
       setCurrUserLocation(refreshLocation);
     }
@@ -118,6 +127,21 @@ const Map = () => {
       qrDataProcessed.current = false;
     }
   }, [qrData]);
+
+  // Refresh user location when destination is set
+  const fetchUserLocation = async () => {
+    try {
+      const location = await Mapbox.locationManager.getLastKnownLocation();
+      if (location) {
+        setCurrUserLocation({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching user location:", error);
+    }
+  };
 
   useEffect(() => {
     if (selectedLocation) {
@@ -163,6 +187,8 @@ const Map = () => {
     stopNavigation,
     currentInstruction,
     setRouteExcludes,
+    distanceToNextManeuver,
+    setIsNavigating,
   } = useRoute(origin, destination);
 
   const { pins } = useAlertPins(currUserLocation);
@@ -268,6 +294,41 @@ const Map = () => {
     }
   }, [qrDataProcessed.current, currUserLocation, selectedLocation]);
 
+  // Handle manual route recalculation
+  const recalculateRoute = () => {
+    if (!currUserLocation || !selectedLocation) {
+      console.warn("Cannot recalculate route: missing coordinates");
+      return;
+    }
+
+    const newOrigin: [number, number] = [
+      currUserLocation.longitude,
+      currUserLocation.latitude,
+    ];
+
+    const newDestination: [number, number] = [
+      selectedLocation.longitude,
+      selectedLocation.latitude,
+    ];
+
+    console.log(
+      "Manually recalculating route from",
+      newOrigin,
+      "to",
+      newDestination
+    );
+
+    // Force route recalculation
+    setIsNavigating(false);
+
+    // Small delay to ensure state updates properly
+    setTimeout(() => {
+      // This will trigger the useEffect in useRoute that fetches routes
+      setCurrUserLocation({ ...currUserLocation });
+      setIsNavigating(true);
+    }, 500);
+  };
+
   return (
     <>
       <View style={styles.page}>
@@ -321,7 +382,7 @@ const Map = () => {
                   : undefined
               }
             />
-            
+
             {/* Route lines for alternative routes */}
             {!isNavigating &&
               alternateRoutes.map((route, index) => (
@@ -341,7 +402,7 @@ const Map = () => {
                   />
                 </Mapbox.ShapeSource>
               ))}
-            
+
             {/* Traveled portion of the selected route during navigation */}
             {isNavigating && traveledCoords.length > 0 && (
               <Mapbox.ShapeSource
@@ -360,7 +421,7 @@ const Map = () => {
                 />
               </Mapbox.ShapeSource>
             )}
-            
+
             {/* Selected route line */}
             {selectedRoute &&
               (selectedRoute.geometry.coordinates.length ?? []) > 0 && (
@@ -377,7 +438,7 @@ const Map = () => {
                   />
                 </Mapbox.ShapeSource>
               )}
-            
+
             {/* Destination marker */}
             {selectedLocation && (
               <PointAnnotation
@@ -390,7 +451,7 @@ const Map = () => {
                 <View />
               </PointAnnotation>
             )}
-            
+
             {/* Render alert pins without callouts */}
             {pins.map((pin) => (
               <PointAnnotation
@@ -405,7 +466,7 @@ const Map = () => {
                 <SimplifiedAlertPin type={pin.type} />
               </PointAnnotation>
             ))}
-            
+
             {/* User location marker */}
             <LocationPuck />
           </MapView>
@@ -448,16 +509,16 @@ const Map = () => {
           onPress={handleQRScan}
           style={{ bottom: isNavigating ? 160 : 60 }}
         />
-        
+
         {/* Settings Button */}
         <SettingsButton
           onPress={toggleSettings}
           style={{ bottom: isNavigating ? 110 : 10 }}
         />
-        
+
         {/* Report Alert Button */}
         <ReportAlertButton userLocation={currUserLocation} />
-        
+
         {/* Settings Modal */}
         <SettingsModal
           isVisible={isSettingsVisible}
@@ -467,23 +528,22 @@ const Map = () => {
             router.push("/auth");
           }}
         />
-        
+
         {/* Pin Info Modal */}
-        <PinInfoModal
-          selectedPin={selectedPin}
-          onClose={handleClosePinInfo}
-        />
-        
+        <PinInfoModal selectedPin={selectedPin} onClose={handleClosePinInfo} />
+
         {/* Navigation UI components */}
         {isNavigating && selectedRoute && (
           <>
             <NavigationCard
               route={selectedRoute}
               instruction={currentInstruction}
+              distanceToNext={distanceToNextManeuver}
             />
             <NavigationControlCard
               route={selectedRoute}
               onCancelNavigation={handleCancelNavigation}
+              onRecalculateRoute={recalculateRoute}
             />
           </>
         )}
@@ -505,7 +565,7 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
-  }
+  },
 });
 
 export default Map;

@@ -23,27 +23,27 @@ A React Native navigation app using Mapbox for real-time routing and navigation.
 
 Create a `.env` file in the root directory.
 
-   ```
-   # LOW SENSITIVITY KEYS
-   EXPO_PUBLIC_API_URL=api_url
-   EXPO_PUBLIC_IOS_GOOGLE_CLIENT_ID=web_client_id
-   EXPO_PUBLIC_REVERSED_IOS_GOOGLE_CLIENT_ID=reversed_ios_client_id
-   EXPO_PUBLIC_ANDROID_GOOGLE_CLIENT_ID=web_client_id
-   EXPO_PUBLIC_MAPBOX_PK=public_mapbox
+```
+# LOW SENSITIVITY KEYS
+API_URL=api_url
+IOS_GOOGLE_CLIENT_ID=web_client_id
+REVERSED_IOS_GOOGLE_CLIENT_ID=reversed_ios_client_id
+ANDROID_GOOGLE_CLIENT_ID=web_client_id
+MAPBOX_PK=public_mapbox
 
-   # HIGH SENSITIVITY KEYS
-   EXPO_PUBLIC_MAPBOX_SK=secret_mapbox
-   ```
+# HIGH SENSITIVITY KEYS
+MAPBOX_SK=secret_mapbox
+```
 
 Create a `.env.rnconfig` file in the root directory.
 
 ```
    # LOW SENSITIVITY KEYS
-   EXPO_PUBLIC_API_URL=api_url
-   EXPO_PUBLIC_IOS_GOOGLE_CLIENT_ID=web_client_id
-   EXPO_PUBLIC_REVERSED_IOS_GOOGLE_CLIENT_ID=reversed_ios_client_id
-   EXPO_PUBLIC_ANDROID_GOOGLE_CLIENT_ID=web_client_id
-   EXPO_PUBLIC_MAPBOX_PK=public_mapbox
+   API_URL=api_url
+   IOS_GOOGLE_CLIENT_ID=web_client_id
+   REVERSED_IOS_GOOGLE_CLIENT_ID=reversed_ios_client_id
+   ANDROID_GOOGLE_CLIENT_ID=web_client_id
+   MAPBOX_PK=public_mapbox
 ```
 
 The difference between the two .env is that one is kept hidden from the builder when generating the APK and the other is not. This prevents sensible keys to be coded into the production APK, preventing users from reverse engineering sensible keys.
@@ -62,19 +62,19 @@ The difference between the two .env is that one is kept hidden from the builder 
    npx expo prebuild --clean
    ```
 
-2. Link .env.rnconfig variable to native Android
+3. Link .env.rnconfig variable to native Android
 
    ```bash
    npx react-native-integrate react-native-config
    ```
 
-   and add this line near the top of ``.\android\app\build.gradle``
+   and add this line near the top of `.\android\app\build.gradle`
 
    ```bash
    apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.gradle"
    ```
 
-3. Start the development build
+4. Start the development build
    ```bash
    npm run android
    ```

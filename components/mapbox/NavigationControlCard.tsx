@@ -11,11 +11,13 @@ import {
 interface NavigationControlCardProps {
   route: Route;
   onCancelNavigation: () => void;
+  onRecalculateRoute?: () => void;
 }
 
 const NavigationControlCard: React.FC<NavigationControlCardProps> = ({
   route,
   onCancelNavigation,
+  onRecalculateRoute,
 }) => {
   const estimatedArrival = new Date(Date.now() + route.duration * 1000);
 
@@ -34,13 +36,23 @@ const NavigationControlCard: React.FC<NavigationControlCardProps> = ({
             </Text>
           </View>
         </View>
-        <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={onCancelNavigation}
-        >
-          <FontAwesome5 name="times" size={20} color="#fff" />
-          <Text style={styles.cancelButtonText}>Cancel</Text>
-        </TouchableOpacity>
+        <View style={styles.buttonsContainer}>
+          {onRecalculateRoute && (
+            <TouchableOpacity
+              style={styles.recalculateButton}
+              onPress={onRecalculateRoute}
+            >
+              <FontAwesome5 name="sync" size={16} color="#fff" />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={onCancelNavigation}
+          >
+            <FontAwesome5 name="times" size={20} color="#fff" />
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -64,6 +76,11 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
+  content: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   statsContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -72,11 +89,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     textAlign: "center",
-  },
-  content: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
   },
   etaContainer: {
     flex: 1,
@@ -88,6 +100,19 @@ const styles = StyleSheet.create({
   etaTime: {
     fontSize: 20,
     fontWeight: "bold",
+  },
+  buttonsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  recalculateButton: {
+    backgroundColor: "#4285F4",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
   },
   cancelButton: {
     flexDirection: "row",

@@ -39,14 +39,14 @@ export default ({ config }) => ({
       [
         "@react-native-google-signin/google-signin",
         {
-          iosUrlScheme: process.env.EXPO_PUBLIC_REVERSED_IOS_GOOGLE_CLIENT_ID,
+          iosUrlScheme: process.env.REVERSED_IOS_GOOGLE_CLIENT_ID,
         },
       ],
       [
         // highlight-start
         "@rnmapbox/maps",
         {
-          RNMapboxMapsDownloadToken: process.env.EXPO_PUBLIC_MAPBOX_SK,
+          RNMapboxMapsDownloadToken: process.env.MAPBOX_SK,
           RNMapboxMapsVersion: "11.0.0",
         },
         // highlight-end

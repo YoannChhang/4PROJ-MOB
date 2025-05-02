@@ -1,10 +1,10 @@
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
-import Config from 'react-native-config';
+import Config from "react-native-config";
 
 export const configureGoogleSignIn = () => {
   GoogleSignin.configure({
-    webClientId: Config.EXPO_PUBLIC_ANDROID_GOOGLE_CLIENT_ID,
-    iosClientId: Config.EXPO_PUBLIC_IOS_GOOGLE_CLIENT_ID,
+    webClientId: Config.ANDROID_GOOGLE_CLIENT_ID,
+    iosClientId: Config.IOS_GOOGLE_CLIENT_ID,
     scopes: ["profile", "email"],
   });
 };
