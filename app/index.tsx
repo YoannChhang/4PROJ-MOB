@@ -17,7 +17,6 @@ import Mapbox, {
 } from "@rnmapbox/maps";
 import MapboxSearchBar from "@/components/mapbox/MapboxSearchBar";
 import QRScanButton from "@/components/mapbox/QRScanButton";
-import useRoute from "@/hooks/useRoute";
 import ItinerarySelect from "@/components/mapbox/ItinerarySelect";
 import { usePathname, useRouter } from "expo-router";
 import NavigationCard from "@/components/mapbox/NavigationCard";
@@ -30,6 +29,11 @@ import { PinRead } from "@/types/api";
 import PinInfoModal from "@/components/mapbox/PinInfoModal";
 import { useUser } from "@/providers/UserProvider";
 import Config from "react-native-config";
+import useRoute from "@/hooks/useRoute";
+import locationTracker from "@/utils/locationTracker";
+import ttsManager from "@/utils/ttsManager";
+import * as Location from 'expo-location';
+import { getExcludesFromPreferences } from "@/utils/routeUtils";
 
 Mapbox.setAccessToken(Config.MAPBOX_PK as string);
 
@@ -37,7 +41,7 @@ const Map = () => {
   const router = useRouter();
   const pathname = usePathname();
   const mapRef = useRef<MapView>(null);
-  const { isSignedIn } = useUser();
+  const { isSignedIn, userData } = useUser();
 
   // Use QR code context instead of URL params
   const { qrData, setQRData } = useQRCode();
@@ -69,43 +73,43 @@ const Map = () => {
   // Settings modal state
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
 
-  // Initialize Mapbox and fetch user location
+  // Initialize location tracking system
   useEffect(() => {
-    const initializeMapbox = async () => {
+    const initLocation = async () => {
       try {
-        // Disable telemetry for privacy
-        Mapbox.setTelemetryEnabled(false);
-
-        // Request permissions via the proper Mapbox API
-        const permissionsStatus =
-          await Mapbox.requestAndroidLocationPermissions();
-        console.log("Location permissions status:", permissionsStatus);
-
-        // Start location updates
-        await Mapbox.locationManager.start();
-
+        // Initialize TTS
+        await ttsManager.initialize();
+        
+        // Start location tracking
+        await locationTracker.startTracking();
+        
         // Get initial location
-        const initialLocation =
-          await Mapbox.locationManager.getLastKnownLocation();
+        const initialLocation = await locationTracker.getLastKnownLocation();
         if (initialLocation) {
           setCurrUserLocation({
-            latitude: initialLocation.coords.latitude,
-            longitude: initialLocation.coords.longitude,
+            latitude: initialLocation[1],
+            longitude: initialLocation[0],
           });
-          console.log("Initial location obtained:", initialLocation.coords);
-        } else {
-          console.warn("No initial location available");
         }
+        
+        // Subscribe to location updates
+        locationTracker.on('locationUpdate', (location) => {
+          setCurrUserLocation({
+            latitude: location[1],
+            longitude: location[0],
+          });
+        });
       } catch (error) {
-        console.error("Error initializing Mapbox:", error);
+        console.error('Error initializing location and TTS:', error);
       }
     };
 
-    initializeMapbox();
+    initLocation();
 
     return () => {
-      // Clean up location manager when component unmounts
-      Mapbox.locationManager.stop();
+      // Clean up resources when component unmounts
+      locationTracker.cleanup();
+      ttsManager.cleanup();
     };
   }, []);
 
@@ -128,68 +132,42 @@ const Map = () => {
     }
   }, [qrData]);
 
-  // Refresh user location when destination is set
-  const fetchUserLocation = async () => {
-    try {
-      const location = await Mapbox.locationManager.getLastKnownLocation();
-      if (location) {
-        setCurrUserLocation({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching user location:", error);
-    }
-  };
+  // Format origins and destinations for useRoute hook
+  const origin = useMemo<[number, number] | null>(() => 
+    currUserLocation ? [currUserLocation.longitude, currUserLocation.latitude] : null,
+  [currUserLocation]);
 
-  useEffect(() => {
-    if (selectedLocation) {
-      console.log("Selected location changed, fetching user location");
-      fetchUserLocation();
-    }
-  }, [selectedLocation]);
+  const destination = useMemo<[number, number] | null>(() => 
+    selectedLocation ? [selectedLocation.longitude, selectedLocation.latitude] : null,
+  [selectedLocation]);
 
-  const origin = useMemo(
-    () =>
-      currUserLocation
-        ? ([currUserLocation.longitude, currUserLocation.latitude] as [
-            number,
-            number
-          ])
-        : null,
-    [currUserLocation]
-  );
-
-  const destination = useMemo(
-    () =>
-      selectedLocation
-        ? ([selectedLocation.longitude, selectedLocation.latitude] as [
-            number,
-            number
-          ])
-        : null,
-    [selectedLocation]
-  );
-
+  // Use our new routing hook
   const {
     selectedRoute,
     setSelectedRoute,
     alternateRoutes,
     setAlternateRoutes,
-    chooseRoute,
-    traveledCoords,
-    loading,
-    error,
-    liveUserLocation,
+    loading: routeLoading,
+    error: routeError,
     isNavigating,
+    setIsNavigating,
+    liveUserLocation,
+    traveledCoords,
+    currentInstruction,
+    distanceToNextManeuver,
     startNavigation,
     stopNavigation,
-    currentInstruction,
-    setRouteExcludes,
-    distanceToNextManeuver,
-    setIsNavigating,
+    chooseRoute,
+    setRouteExcludes
   } = useRoute(origin, destination);
+
+  // Set route excludes based on user preferences
+  useEffect(() => {
+    if (!userData?.preferences) return;
+    
+    const excludes = getExcludesFromPreferences(userData.preferences);
+    setRouteExcludes(excludes.length > 0 ? excludes : undefined);
+  }, [userData?.preferences, setRouteExcludes]);
 
   const { pins } = useAlertPins(currUserLocation);
 
@@ -219,18 +197,16 @@ const Map = () => {
       } else {
         // Reset to user preferences if no excludes in QR
         console.log("No excludes in QR code, using user preferences");
-        setRouteExcludes(undefined);
+        const excludes = getExcludesFromPreferences(userData?.preferences);
+        setRouteExcludes(excludes.length > 0 ? excludes : undefined);
       }
-
-      // Refresh user location
-      fetchUserLocation();
 
       // Clear QR data to prevent reprocessing
       setTimeout(() => {
         setQRData(null);
       }, 1000);
     }
-  }, [qrData, setRouteExcludes, setQRData]);
+  }, [qrData, setRouteExcludes, setQRData, userData?.preferences]);
 
   // Toggle settings modal
   const toggleSettings = useCallback(() => {
@@ -239,9 +215,7 @@ const Map = () => {
 
   // Handle QR code button press
   const handleQRScan = () => {
-    router.push({
-      pathname: "/qr-scanner",
-    });
+    router.push("/qr-scanner");
   };
 
   // Handle pin selection
@@ -258,76 +232,54 @@ const Map = () => {
   const handleCancelNavigation = useCallback(() => {
     stopNavigation();
     setSelectedLocation(null);
-    setSelectedRoute(null);
-    setAlternateRoutes([]);
     // Clear QR data
     setQRData(null);
     qrDataProcessed.current = false;
   }, [stopNavigation, setQRData]);
 
-  // Force route calculation when QR code is processed and we have coordinates
-  useEffect(() => {
-    if (qrDataProcessed.current && currUserLocation && selectedLocation) {
-      console.log("Ready to calculate route after QR code scan:");
-      console.log("- Origin:", [
-        currUserLocation.longitude,
-        currUserLocation.latitude,
-      ]);
-      console.log("- Destination:", [
-        selectedLocation.longitude,
-        selectedLocation.latitude,
-      ]);
-
-      // At this point, we should have everything needed for route calculation
-      // The route calculation is normally triggered by changes to origin/destination
-      // in the useRoute hook, but we'll force a refresh of those values here:
-
-      // Create a slight delay to ensure all state updates have propagated
-      setTimeout(() => {
-        // Force a recalculation by creating new coordinate objects
-        const refreshedOrigin = {
-          latitude: currUserLocation.latitude,
-          longitude: currUserLocation.longitude,
-        };
-        setCurrUserLocation(refreshedOrigin);
-      }, 500);
+  // Request background location permissions for navigation
+  const requestBackgroundPermission = useCallback(async () => {
+    const { status } = await Location.requestBackgroundPermissionsAsync();
+    if (status !== 'granted') {
+      console.warn('Background location permission denied');
+    } else {
+      console.log('Background location permission granted');
     }
-  }, [qrDataProcessed.current, currUserLocation, selectedLocation]);
+  }, []);
 
-  // Handle manual route recalculation
-  const recalculateRoute = () => {
+  // Handle starting navigation with permissions check
+  const handleStartNavigation = useCallback(async () => {
+    // Request background permissions on both platforms
+    await requestBackgroundPermission();
+    
+    // Start navigation
+    startNavigation();
+  }, [startNavigation, requestBackgroundPermission]);
+
+  // Handle route recalculation
+  const handleRecalculateRoute = useCallback(() => {
     if (!currUserLocation || !selectedLocation) {
       console.warn("Cannot recalculate route: missing coordinates");
       return;
     }
 
-    const newOrigin: [number, number] = [
-      currUserLocation.longitude,
-      currUserLocation.latitude,
-    ];
-
-    const newDestination: [number, number] = [
-      selectedLocation.longitude,
-      selectedLocation.latitude,
-    ];
-
-    console.log(
-      "Manually recalculating route from",
-      newOrigin,
-      "to",
-      newDestination
-    );
-
-    // Force route recalculation
+    // Temporarily disable navigation mode
     setIsNavigating(false);
-
-    // Small delay to ensure state updates properly
+    
+    // Announce rerouting
+    ttsManager.speak("Recalcul d'itinéraire en cours");
+    
+    // Force a location update to trigger route recalculation
     setTimeout(() => {
       // This will trigger the useEffect in useRoute that fetches routes
       setCurrUserLocation({ ...currUserLocation });
-      setIsNavigating(true);
-    }, 500);
-  };
+      
+      // Resume navigation after a short delay
+      setTimeout(() => {
+        setIsNavigating(true);
+      }, 500);
+    }, 1000);
+  }, [currUserLocation, selectedLocation, setIsNavigating]);
 
   return (
     <>
@@ -491,9 +443,7 @@ const Map = () => {
             setQRData(null);
             qrDataProcessed.current = false;
           }}
-          onStartNavigation={() => {
-            startNavigation();
-          }}
+          onStartNavigation={handleStartNavigation}
           onPlanLater={() => {
             setSelectedLocation(null);
             setSelectedRoute(null);
@@ -543,7 +493,7 @@ const Map = () => {
             <NavigationControlCard
               route={selectedRoute}
               onCancelNavigation={handleCancelNavigation}
-              onRecalculateRoute={recalculateRoute}
+              onRecalculateRoute={handleRecalculateRoute}
             />
           </>
         )}
