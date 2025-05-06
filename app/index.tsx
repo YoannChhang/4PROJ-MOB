@@ -4,10 +4,16 @@ import React, {
   useMemo,
   useCallback,
   useRef,
+  useReducer,
 } from "react";
-import { StyleSheet, View } from "react-native";
-import SettingsButton from "@/components/settings/SettingsButton";
-import SettingsModal from "@/components/settings/SettingsModal";
+import {
+  StyleSheet,
+  View,
+  Dimensions,
+  ActivityIndicator,
+  Text,
+  Alert,
+} from "react-native";
 import Mapbox, {
   MapView,
   Camera,
@@ -15,96 +21,267 @@ import Mapbox, {
   PointAnnotation,
   UserTrackingMode,
 } from "@rnmapbox/maps";
-import MapboxSearchBar from "@/components/mapbox/MapboxSearchBar";
-import QRScanButton from "@/components/mapbox/QRScanButton";
-import ItinerarySelect from "@/components/mapbox/ItinerarySelect";
 import { usePathname, useRouter } from "expo-router";
-import NavigationCard from "@/components/mapbox/NavigationCard";
-import NavigationControlCard from "@/components/mapbox/NavigationControlCard";
 import { useQRCode } from "@/providers/QRCodeProvider";
-import SimplifiedAlertPin from "@/components/mapbox/SimplifiedAlertPin";
-import ReportAlertButton from "@/components/mapbox/ReportAlertButton";
-import useAlertPins from "@/hooks/useAlertPins";
-import { PinRead } from "@/types/api";
-import PinInfoModal from "@/components/mapbox/PinInfoModal";
+import { usePins } from "@/providers/PinProvider";
 import { useUser } from "@/providers/UserProvider";
 import Config from "react-native-config";
 import useRoute from "@/hooks/useRoute";
 import locationTracker from "@/utils/locationTracker";
 import ttsManager from "@/utils/ttsManager";
-import * as Location from 'expo-location';
 import { getExcludesFromPreferences } from "@/utils/routeUtils";
 
+import SimplifiedAlertPin from "@/components/mapbox/SimplifiedAlertPin";
+import SearchAndRouteControl from "@/components/mapbox/SearchAndRouteControl";
+import NavigationInterface from "@/components/mapbox/NavigationInterface";
+import PinInfoModal from "@/components/mapbox/PinInfoModal";
+import useAlertPins from "@/hooks/useAlertPins";
+
+import FloatingActionButton from "@/components/ui/FloatingActionButton";
+import { Route } from "@/types/mapbox";
+import { PinRead } from "@/types/api";
+
+// Import navigation button components
+import HamburgerMenuButton from "@/components/settings/HamburgerMenuButton";
+import SideMenu from "@/components/settings/SideMenu";
+import QRCodeButton from "@/components/mapbox/QRCodeButton";
+import IncidentReportButton from "@/components/mapbox/IncidentReportButton";
+import ReportAlertButton from "@/components/mapbox/ReportAlertButton";
+import { RoutingPreference } from "@/components/settings/RoutingPreferences";
+
+// Set Mapbox access token
 Mapbox.setAccessToken(Config.MAPBOX_PK as string);
+
+// Define app state and actions
+type AppState = {
+  uiMode: "map" | "search" | "route-selection" | "navigation";
+  destination: [number, number] | null;
+  isSideMenuOpen: boolean;
+  selectedPin: PinRead | null;
+  isInitializing: boolean;
+  isLoading: boolean;
+  error: string | null;
+};
+
+type AppAction =
+  | { type: "INITIALIZE_COMPLETE" }
+  | { type: "SHOW_SEARCH" }
+  | { type: "HIDE_SEARCH" }
+  | { type: "SET_DESTINATION"; payload: [number, number] | null }
+  | { type: "START_NAVIGATION" }
+  | { type: "STOP_NAVIGATION" }
+  | { type: "TOGGLE_SIDE_MENU" }
+  | { type: "SELECT_PIN"; payload: PinRead | null }
+  | { type: "SET_LOADING"; payload: boolean }
+  | { type: "SET_ERROR"; payload: string | null };
+
+// App state reducer
+const appReducer = (state: AppState, action: AppAction): AppState => {
+  switch (action.type) {
+    case "INITIALIZE_COMPLETE":
+      return { ...state, isInitializing: false };
+
+    case "SHOW_SEARCH":
+      return {
+        ...state,
+        uiMode: state.uiMode === "navigation" ? "navigation" : "search",
+      };
+
+    case "HIDE_SEARCH":
+      return {
+        ...state,
+        uiMode: "map",
+        destination: null,
+      };
+
+    case "SET_DESTINATION":
+      return {
+        ...state,
+        destination: action.payload,
+        uiMode: action.payload ? "route-selection" : state.uiMode,
+      };
+
+    case "START_NAVIGATION":
+      return {
+        ...state,
+        uiMode: "navigation",
+      };
+
+    case "STOP_NAVIGATION":
+      return {
+        ...state,
+        uiMode: "map",
+        destination: null,
+      };
+
+    case "TOGGLE_SIDE_MENU":
+      return {
+        ...state,
+        isSideMenuOpen: !state.isSideMenuOpen,
+      };
+
+    case "SELECT_PIN":
+      return {
+        ...state,
+        selectedPin: action.payload,
+      };
+
+    case "SET_LOADING":
+      return {
+        ...state,
+        isLoading: action.payload,
+      };
+
+    case "SET_ERROR":
+      return {
+        ...state,
+        error: action.payload,
+      };
+
+    default:
+      return state;
+  }
+};
+
+// Initial app state
+const initialAppState: AppState = {
+  uiMode: "map",
+  destination: null,
+  isSideMenuOpen: false,
+  selectedPin: null,
+  isInitializing: true,
+  isLoading: false,
+  error: null,
+};
 
 const Map = () => {
   const router = useRouter();
   const pathname = usePathname();
   const mapRef = useRef<MapView>(null);
   const { isSignedIn, userData } = useUser();
+  const { width, height } = Dimensions.get("window");
 
-  // Use QR code context instead of URL params
+  // Use reducer for app state
+  const [state, dispatch] = useReducer(appReducer, initialAppState);
+  
+  // State for incident report modal
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+
+  // Use QR code context
   const { qrData, setQRData } = useQRCode();
-
-  // Flag to track if QR data was processed
   const qrDataProcessed = useRef(false);
 
-  // Track selected alert pin
-  const [selectedPin, setSelectedPin] = useState<PinRead | null>(null);
+  // Location state
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(
+    null
+  );
 
-  const handleMapPress = () => {
-    // Close any open pin info when tapping on the map
-    if (selectedPin !== null) {
-      setSelectedPin(null);
-    }
-  };
+  // Routing preferences state
+  const [preferences, setPreferences] = useState<RoutingPreference[]>([
+    {
+      id: "avoid_tolls",
+      label: "Avoid Tolls",
+      enabled: userData?.preferences?.avoid_tolls || false,
+    },
+    {
+      id: "avoid_highways",
+      label: "Avoid Highways",
+      enabled: userData?.preferences?.avoid_highways || false,
+    },
+    {
+      id: "avoid_unpaved",
+      label: "Avoid Unpaved Roads",
+      enabled: userData?.preferences?.avoid_unpaved || false,
+    },
+  ]);
 
-  const [selectedLocation, setSelectedLocation] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
-
-  // Origin should be the user's location
-  const [currUserLocation, setCurrUserLocation] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
-
-  // Settings modal state
-  const [isSettingsVisible, setIsSettingsVisible] = useState(false);
-
-  // Initialize location tracking system
+  // Update preferences when user data changes
   useEffect(() => {
-    const initLocation = async () => {
+    if (userData?.preferences) {
+      setPreferences([
+        {
+          id: "avoid_tolls",
+          label: "Avoid Tolls",
+          enabled: userData.preferences.avoid_tolls || false,
+        },
+        {
+          id: "avoid_highways",
+          label: "Avoid Highways",
+          enabled: userData.preferences.avoid_highways || false,
+        },
+        {
+          id: "avoid_unpaved",
+          label: "Avoid Unpaved Roads",
+          enabled: userData.preferences.avoid_unpaved || false,
+        },
+      ]);
+    }
+  }, [userData?.preferences]);
+
+  // Handle preference toggle
+  const handleTogglePreference = useCallback((id: string, value: boolean) => {
+    setPreferences(prev => 
+      prev.map(pref => 
+        pref.id === id ? { ...pref, enabled: value } : pref
+      )
+    );
+
+    // Update user preferences if needed
+    // This logic should remain as it was in SettingsModal
+  }, []);
+
+  // Initialize location tracking and TTS
+  useEffect(() => {
+    const initialize = async () => {
       try {
-        // Initialize TTS
-        await ttsManager.initialize();
-        
-        // Start location tracking
-        await locationTracker.startTracking();
-        
+        // Initialize TTS with better error handling
+        try {
+          await ttsManager.initialize();
+          console.log("TTS initialized successfully");
+        } catch (error) {
+          console.warn(
+            "TTS initialization failed, continuing without voice guidance:",
+            error
+          );
+        }
+
+        // Start location tracking with error handling
+        const trackingStarted = await locationTracker.startTracking();
+        if (!trackingStarted) {
+          console.warn(
+            "Location tracking could not be started, check permissions"
+          );
+          Alert.alert(
+            "Location Required",
+            "This app needs location access to provide navigation services. Please enable location access in your device settings.",
+            [{ text: "OK" }]
+          );
+        }
+
+        // Set up location update listener
+        locationTracker.on("locationUpdate", (location) => {
+          setUserLocation(location);
+        });
+
         // Get initial location
         const initialLocation = await locationTracker.getLastKnownLocation();
         if (initialLocation) {
-          setCurrUserLocation({
-            latitude: initialLocation[1],
-            longitude: initialLocation[0],
-          });
+          setUserLocation(initialLocation);
         }
-        
-        // Subscribe to location updates
-        locationTracker.on('locationUpdate', (location) => {
-          setCurrUserLocation({
-            latitude: location[1],
-            longitude: location[0],
-          });
-        });
+
+        // Initialization complete
+        dispatch({ type: "INITIALIZE_COMPLETE" });
       } catch (error) {
-        console.error('Error initializing location and TTS:', error);
+        console.error("Initialization error:", error);
+        dispatch({ type: "INITIALIZE_COMPLETE" });
+        dispatch({
+          type: "SET_ERROR",
+          payload: "Failed to initialize app services",
+        });
       }
     };
 
-    initLocation();
+    initialize();
 
     return () => {
       // Clean up resources when component unmounts
@@ -113,35 +290,7 @@ const Map = () => {
     };
   }, []);
 
-  // Fetch pins when auth state changes if we have user location
-  useEffect(() => {
-    console.log("Auth state changed:", isSignedIn ? "Signed In" : "Signed Out");
-    if (currUserLocation) {
-      // This will trigger a pin refresh through the useAlertPins hook
-      const refreshLocation = {
-        ...currUserLocation,
-      };
-      setCurrUserLocation(refreshLocation);
-    }
-  }, [isSignedIn]);
-
-  // Reset QR data processed flag when QR data is null
-  useEffect(() => {
-    if (!qrData) {
-      qrDataProcessed.current = false;
-    }
-  }, [qrData]);
-
-  // Format origins and destinations for useRoute hook
-  const origin = useMemo<[number, number] | null>(() => 
-    currUserLocation ? [currUserLocation.longitude, currUserLocation.latitude] : null,
-  [currUserLocation]);
-
-  const destination = useMemo<[number, number] | null>(() => 
-    selectedLocation ? [selectedLocation.longitude, selectedLocation.latitude] : null,
-  [selectedLocation]);
-
-  // Use our new routing hook
+  // Use the route hook
   const {
     selectedRoute,
     setSelectedRoute,
@@ -158,363 +307,549 @@ const Map = () => {
     startNavigation,
     stopNavigation,
     chooseRoute,
-    setRouteExcludes
-  } = useRoute(origin, destination);
+    setRouteExcludes,
+  } = useRoute(userLocation, state.destination);
+
+  // Handle route recalculation
+  const handleRecalculateRoute = useCallback(() => {
+    if (!userLocation || !state.destination) {
+      dispatch({
+        type: "SET_ERROR",
+        payload: "Cannot recalculate route: missing coordinates",
+      });
+      return;
+    }
+
+    try {
+      // Announce rerouting
+      ttsManager.speak("Recalcul d'itinéraire en cours");
+
+      // Since handleReroute doesn't exist, we'll manually trigger a reroute
+      // by temporarily stopping navigation and then restarting it
+      setIsNavigating(false);
+
+      // Update dispatch to reflect navigation state
+      dispatch({ type: "SET_LOADING", payload: true });
+
+      // Force a recalculation by creating a slight delay
+      setTimeout(() => {
+        // Resume navigation after a short delay
+        setIsNavigating(true);
+        dispatch({ type: "SET_LOADING", payload: false });
+      }, 1000);
+    } catch (error) {
+      console.error("Rerouting error:", error);
+      dispatch({ type: "SET_ERROR", payload: "Failed to recalculate route" });
+    }
+  }, [userLocation, state.destination, setIsNavigating]);
+
+  // Update app loading state when route loading changes
+  useEffect(() => {
+    dispatch({ type: "SET_LOADING", payload: routeLoading });
+  }, [routeLoading]);
+
+  // Handle route errors
+  useEffect(() => {
+    if (routeError) {
+      dispatch({ type: "SET_ERROR", payload: routeError });
+      // Display error to user if severe
+      if (routeError.includes("Failed to fetch routes")) {
+        Alert.alert(
+          "Navigation Error",
+          "Unable to calculate route. Please check your internet connection and try again.",
+          [{ text: "OK" }]
+        );
+      }
+    } else {
+      dispatch({ type: "SET_ERROR", payload: null });
+    }
+  }, [routeError]);
+
+  // Update UI mode when navigation state changes
+  useEffect(() => {
+    if (isNavigating && state.uiMode !== "navigation") {
+      dispatch({ type: "START_NAVIGATION" });
+    } else if (!isNavigating && state.uiMode === "navigation") {
+      dispatch({ type: "STOP_NAVIGATION" });
+    }
+  }, [isNavigating, state.uiMode]);
 
   // Set route excludes based on user preferences
   useEffect(() => {
     if (!userData?.preferences) return;
-    
+
     const excludes = getExcludesFromPreferences(userData.preferences);
     setRouteExcludes(excludes.length > 0 ? excludes : undefined);
   }, [userData?.preferences, setRouteExcludes]);
 
-  const { pins } = useAlertPins(currUserLocation);
+  // Get pins for the current location
+  const { pins } = useAlertPins(
+    userLocation
+      ? {
+          latitude: userLocation[1],
+          longitude: userLocation[0],
+        }
+      : null
+  );
 
-  // Process QR code data if available
+  // Process QR code data with improved handling
   useEffect(() => {
     if (qrData && !qrDataProcessed.current) {
       console.log("Processing QR code data:", qrData);
       qrDataProcessed.current = true;
 
-      // Reset any existing routes
+      // Set loading state
+      dispatch({ type: "SET_LOADING", payload: true });
+
+      // Reset existing route state
       setSelectedRoute(null);
       setAlternateRoutes([]);
 
-      // Set the destination from QR code
-      if (qrData.toCoords) {
-        console.log("Setting destination from QR code:", qrData.toCoords);
-        setSelectedLocation({
-          latitude: qrData.toCoords[1],
-          longitude: qrData.toCoords[0],
-        });
-      }
+      try {
+        // Set destination from QR code
+        if (qrData.toCoords) {
+          console.log("Setting destination from QR code:", qrData.toCoords);
+          dispatch({ type: "SET_DESTINATION", payload: qrData.toCoords });
+          dispatch({ type: "SHOW_SEARCH" });
 
-      // Set route excludes if present
-      if (qrData.excludes && qrData.excludes.length > 0) {
-        console.log("Setting excludes from QR code:", qrData.excludes);
-        setRouteExcludes(qrData.excludes);
-      } else {
-        // Reset to user preferences if no excludes in QR
-        console.log("No excludes in QR code, using user preferences");
-        const excludes = getExcludesFromPreferences(userData?.preferences);
-        setRouteExcludes(excludes.length > 0 ? excludes : undefined);
-      }
+          // Set route excludes if present
+          if (qrData.excludes && qrData.excludes.length > 0) {
+            console.log("Setting excludes from QR code:", qrData.excludes);
+            setRouteExcludes(qrData.excludes);
+          } else {
+            // Reset to user preferences if no excludes in QR
+            console.log("Using user preferences for route options");
+            const excludes = getExcludesFromPreferences(userData?.preferences);
+            setRouteExcludes(excludes.length > 0 ? excludes : undefined);
+          }
+        }
+      } catch (error) {
+        console.error("Error processing QR data:", error);
+        dispatch({ type: "SET_ERROR", payload: "Invalid QR code data" });
+        Alert.alert(
+          "QR Code Error",
+          "Could not process the scanned QR code. Please try again with a valid route code.",
+          [{ text: "OK" }]
+        );
+      } finally {
+        // End loading state
+        dispatch({ type: "SET_LOADING", payload: false });
 
-      // Clear QR data to prevent reprocessing
-      setTimeout(() => {
-        setQRData(null);
-      }, 1000);
+        // Clear QR data to prevent reprocessing
+        setTimeout(() => {
+          setQRData(null);
+        }, 1000);
+      }
     }
   }, [qrData, setRouteExcludes, setQRData, userData?.preferences]);
 
-  // Toggle settings modal
-  const toggleSettings = useCallback(() => {
-    setIsSettingsVisible((prev) => !prev);
-  }, []);
-
-  // Handle QR code button press
-  const handleQRScan = () => {
-    router.push("/qr-scanner");
-  };
-
-  // Handle pin selection
-  const handleSelectPin = (pin: PinRead) => {
-    setSelectedPin(pin);
-  };
-
-  // Handle closing pin info modal
-  const handleClosePinInfo = useCallback(() => {
-    setSelectedPin(null);
-  }, []);
-
-  // Clear route flag when canceling navigation
-  const handleCancelNavigation = useCallback(() => {
-    stopNavigation();
-    setSelectedLocation(null);
-    // Clear QR data
-    setQRData(null);
-    qrDataProcessed.current = false;
-  }, [stopNavigation, setQRData]);
-
-  // Request background location permissions for navigation
-  const requestBackgroundPermission = useCallback(async () => {
-    const { status } = await Location.requestBackgroundPermissionsAsync();
-    if (status !== 'granted') {
-      console.warn('Background location permission denied');
-    } else {
-      console.log('Background location permission granted');
-    }
-  }, []);
-
-  // Handle starting navigation with permissions check
-  const handleStartNavigation = useCallback(async () => {
-    // Request background permissions on both platforms
-    await requestBackgroundPermission();
-    
-    // Start navigation
-    startNavigation();
-  }, [startNavigation, requestBackgroundPermission]);
-
-  // Handle route recalculation
-  const handleRecalculateRoute = useCallback(() => {
-    if (!currUserLocation || !selectedLocation) {
-      console.warn("Cannot recalculate route: missing coordinates");
+  // Handle map tap with improved pin handling
+  const handleMapPress = useCallback(() => {
+    // Close any open pin info when tapping on the map
+    if (state.selectedPin !== null) {
+      dispatch({ type: "SELECT_PIN", payload: null });
       return;
     }
 
-    // Temporarily disable navigation mode
-    setIsNavigating(false);
-    
-    // Announce rerouting
-    ttsManager.speak("Recalcul d'itinéraire en cours");
-    
-    // Force a location update to trigger route recalculation
-    setTimeout(() => {
-      // This will trigger the useEffect in useRoute that fetches routes
-      setCurrUserLocation({ ...currUserLocation });
-      
-      // Resume navigation after a short delay
-      setTimeout(() => {
-        setIsNavigating(true);
-      }, 500);
-    }, 1000);
-  }, [currUserLocation, selectedLocation, setIsNavigating]);
+    // If we're in map mode, show search
+    if (state.uiMode === "map") {
+      dispatch({ type: "SHOW_SEARCH" });
+    }
+  }, [state.selectedPin, state.uiMode]);
+
+  // Toggle search UI
+  const toggleSearchUI = useCallback(() => {
+    if (state.uiMode === "map") {
+      dispatch({ type: "SHOW_SEARCH" });
+    } else if (state.uiMode === "search") {
+      dispatch({ type: "HIDE_SEARCH" });
+    }
+  }, [state.uiMode]);
+
+  // Handle QR code button press
+  const handleQRScan = useCallback(() => {
+    router.push("/qr-scanner");
+  }, [router]);
+  
+  // Handle incident report button press
+  const handleOpenReportModal = useCallback(() => {
+    setReportModalVisible(true);
+  }, []);
+  
+  // Handle closing incident report modal
+  const handleCloseReportModal = useCallback(() => {
+    setReportModalVisible(false);
+  }, []);
+
+  // Handle pin selection
+  const handleSelectPin = useCallback((pin: PinRead) => {
+    dispatch({ type: "SELECT_PIN", payload: pin });
+  }, []);
+
+  // Handle destination selection
+  const handleDestinationSelected = useCallback((coords: [number, number]) => {
+    dispatch({ type: "SET_DESTINATION", payload: coords });
+  }, []);
+
+  // Cancel search
+  const handleCancelSearch = useCallback(() => {
+    dispatch({ type: "HIDE_SEARCH" });
+    setSelectedRoute(null);
+    setAlternateRoutes([]);
+  }, [setSelectedRoute, setAlternateRoutes]);
+
+  // Handle route selection
+  const handleRouteSelected = useCallback(
+    (selectedRoute: Route, alternateRoutes: Route[]) => {
+      setSelectedRoute(selectedRoute);
+      setAlternateRoutes(alternateRoutes);
+    },
+    [setSelectedRoute, setAlternateRoutes]
+  );
+
+  // Handle start navigation with proper initialization
+  const handleStartNavigation = useCallback(() => {
+    if (!selectedRoute) {
+      dispatch({ type: "SET_ERROR", payload: "No route selected" });
+      return;
+    }
+
+    // Start navigation using the hook's function
+    startNavigation();
+
+    // Update UI mode
+    dispatch({ type: "START_NAVIGATION" });
+  }, [selectedRoute, startNavigation]);
+
+  // Handle cancel navigation with proper cleanup
+  const handleCancelNavigation = useCallback(() => {
+    // Stop navigation using the hook's function
+    stopNavigation();
+
+    // Reset state
+    dispatch({ type: "STOP_NAVIGATION" });
+    setSelectedRoute(null);
+    setAlternateRoutes([]);
+
+    // Reset QR data processing flag
+    qrDataProcessed.current = false;
+  }, [stopNavigation, setSelectedRoute, setAlternateRoutes]);
+
+  // Loading screen while initializing
+  if (state.isInitializing) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4285F4" />
+        <Text style={styles.loadingText}>
+          Initializing navigation services...
+        </Text>
+      </View>
+    );
+  }
+
+  // Compute whether search UI is visible
+  const isSearchVisible =
+    state.uiMode === "search" || state.uiMode === "route-selection";
 
   return (
-    <>
-      <View style={styles.page}>
-        <View style={styles.container}>
-          <MapView
-            ref={mapRef}
-            style={styles.map}
-            styleURL="mapbox://styles/mapbox/navigation-night-v1"
-            logoEnabled={false}
-            scaleBarEnabled={false}
-            attributionPosition={{
-              bottom: isNavigating ? 130 : 8,
-              left: 8,
-            }}
-            onPress={handleMapPress}
-          >
-            <Camera
-              animationMode="flyTo"
-              animationDuration={2000} // Smooth transition effect
-              followUserLocation={isNavigating}
-              followUserMode={"course" as UserTrackingMode}
-              followZoomLevel={isNavigating ? 18 : undefined}
-              bounds={
-                selectedRoute &&
-                (selectedRoute?.geometry.coordinates ?? []).length > 0
-                  ? {
-                      ne: selectedRoute.geometry.coordinates[0], // First coordinate (northeast)
-                      sw: selectedRoute.geometry.coordinates[
-                        selectedRoute?.geometry.coordinates.length - 1
-                      ], // Last coordinate (southwest)
-                      paddingLeft: 50,
-                      paddingRight: 50,
-                      paddingTop: 50,
-                      paddingBottom: 50,
-                    }
-                  : currUserLocation // If no route, focus on user location
-                  ? {
-                      ne: [
-                        currUserLocation.longitude + 0.01, // Slight padding to prevent being too close
-                        currUserLocation.latitude + 0.01,
-                      ],
-                      sw: [
-                        currUserLocation.longitude - 0.01,
-                        currUserLocation.latitude - 0.01,
-                      ],
-                      paddingLeft: 50,
-                      paddingRight: 50,
-                      paddingTop: 50,
-                      paddingBottom: 50,
-                    }
-                  : undefined
-              }
-            />
+    <View style={styles.page}>
+      <MapView
+        ref={mapRef}
+        style={styles.map}
+        styleURL="mapbox://styles/mapbox/navigation-night-v1"
+        logoEnabled={false}
+        scaleBarEnabled={false}
+        attributionPosition={{
+          bottom: state.uiMode === "navigation" ? 130 : 8,
+          left: 8,
+        }}
+        onPress={handleMapPress}
+      >
+        <Camera
+          animationMode="flyTo"
+          animationDuration={2000}
+          followUserLocation={state.uiMode === "navigation"}
+          followUserMode={"course" as UserTrackingMode}
+          followZoomLevel={state.uiMode === "navigation" ? 18 : undefined}
+          bounds={
+            selectedRoute && selectedRoute.geometry.coordinates.length > 0
+              ? {
+                  ne: selectedRoute.geometry.coordinates[0],
+                  sw: selectedRoute.geometry.coordinates[
+                    selectedRoute.geometry.coordinates.length - 1
+                  ],
+                  paddingLeft: 50,
+                  paddingRight: 50,
+                  paddingTop: 50,
+                  paddingBottom: 50,
+                }
+              : userLocation
+              ? {
+                  ne: [userLocation[0] + 0.01, userLocation[1] + 0.01],
+                  sw: [userLocation[0] - 0.01, userLocation[1] - 0.01],
+                  paddingLeft: 50,
+                  paddingRight: 50,
+                  paddingTop: 50,
+                  paddingBottom: 50,
+                }
+              : undefined
+          }
+        />
 
-            {/* Route lines for alternative routes */}
-            {!isNavigating &&
-              alternateRoutes.map((route, index) => (
-                <Mapbox.ShapeSource
-                  id={`routeSource-${index}`}
-                  key={`routeSource-${index}`}
-                  shape={{
-                    type: "LineString",
-                    coordinates: route.geometry.coordinates,
-                  }}
-                  onPress={() => chooseRoute(route, selectedRoute)}
-                >
-                  <Mapbox.LineLayer
-                    id={`routeFill-${index}`}
-                    style={{ lineColor: "gray", lineWidth: 3 }}
-                    belowLayerID="routeFill"
-                  />
-                </Mapbox.ShapeSource>
-              ))}
-
-            {/* Traveled portion of the selected route during navigation */}
-            {isNavigating && traveledCoords.length > 0 && (
-              <Mapbox.ShapeSource
-                id="traveledRoute"
-                shape={{ type: "LineString", coordinates: traveledCoords }}
-              >
-                <Mapbox.LineLayer
-                  id="traveledLine"
-                  style={{
-                    lineColor: "gray",
-                    lineWidth: 3,
-                    lineCap: Mapbox.LineJoin.Round,
-                    lineJoin: Mapbox.LineJoin.Round,
-                  }}
-                  aboveLayerID="routeFill"
-                />
-              </Mapbox.ShapeSource>
-            )}
-
-            {/* Selected route line */}
-            {selectedRoute &&
-              (selectedRoute.geometry.coordinates.length ?? []) > 0 && (
-                <Mapbox.ShapeSource
-                  id="routeSource"
-                  shape={{
-                    type: "LineString",
-                    coordinates: selectedRoute.geometry.coordinates,
-                  }}
-                >
-                  <Mapbox.LineLayer
-                    id="routeFill"
-                    style={{ lineColor: "blue", lineWidth: 3 }}
-                  />
-                </Mapbox.ShapeSource>
-              )}
-
-            {/* Destination marker */}
-            {selectedLocation && (
-              <PointAnnotation
-                id="selectedLocation"
-                coordinate={[
-                  selectedLocation.longitude,
-                  selectedLocation.latitude,
-                ]}
-              >
-                <View />
-              </PointAnnotation>
-            )}
-
-            {/* Render alert pins without callouts */}
-            {pins.map((pin) => (
-              <PointAnnotation
-                key={`pin-${pin.id}`}
-                id={`pin-${pin.id}`}
-                coordinate={[pin.longitude, pin.latitude]}
-                onSelected={() => {
-                  handleSelectPin(pin);
-                  return true;
+        {/* Route lines for alternative routes */}
+        {state.uiMode !== "navigation" &&
+          alternateRoutes.map((route, index) => (
+            <Mapbox.ShapeSource
+              id={`routeSource-${index}`}
+              key={`routeSource-${index}`}
+              shape={{
+                type: "LineString",
+                coordinates: route.geometry.coordinates,
+              }}
+            >
+              <Mapbox.LineLayer
+                id={`routeFill-${index}`}
+                style={{
+                  lineColor: "gray",
+                  lineWidth: 3,
+                  lineOpacity: 0.7,
+                  lineCap: "round",
+                  lineJoin: "round",
                 }}
-              >
-                <SimplifiedAlertPin type={pin.type} />
-              </PointAnnotation>
-            ))}
+                belowLayerID="routeFill"
+              />
+            </Mapbox.ShapeSource>
+          ))}
 
-            {/* User location marker */}
-            <LocationPuck />
-          </MapView>
-        </View>
-
-        {/* Search bar component */}
-        <MapboxSearchBar
-          selectedLocation={selectedLocation}
-          onSelectLocation={(location) => setSelectedLocation(location)}
-        />
-
-        {/* Route selection bottom sheet */}
-        <ItinerarySelect
-          selectedRoute={selectedRoute}
-          alternateRoutes={alternateRoutes}
-          chooseRoute={chooseRoute}
-          onBack={() => {
-            setSelectedLocation(null);
-            setSelectedRoute(null);
-            setAlternateRoutes([]);
-            // Clear QR data
-            setQRData(null);
-            qrDataProcessed.current = false;
-          }}
-          onStartNavigation={handleStartNavigation}
-          onPlanLater={() => {
-            setSelectedLocation(null);
-            setSelectedRoute(null);
-            setAlternateRoutes([]);
-            // Clear QR data
-            setQRData(null);
-            qrDataProcessed.current = false;
-          }}
-        />
-
-        {/* QR Code Scan Button */}
-        <QRScanButton
-          onPress={handleQRScan}
-          style={{ bottom: isNavigating ? 160 : 60 }}
-        />
-
-        {/* Settings Button */}
-        <SettingsButton
-          onPress={toggleSettings}
-          style={{ bottom: isNavigating ? 110 : 10 }}
-        />
-
-        {/* Report Alert Button */}
-        <ReportAlertButton userLocation={currUserLocation} />
-
-        {/* Settings Modal */}
-        <SettingsModal
-          isVisible={isSettingsVisible}
-          onClose={() => setIsSettingsVisible(false)}
-          toLogin={() => {
-            if (pathname == "/auth") return;
-            router.push("/auth");
-          }}
-        />
-
-        {/* Pin Info Modal */}
-        <PinInfoModal selectedPin={selectedPin} onClose={handleClosePinInfo} />
-
-        {/* Navigation UI components */}
-        {isNavigating && selectedRoute && (
-          <>
-            <NavigationCard
-              route={selectedRoute}
-              instruction={currentInstruction}
-              distanceToNext={distanceToNextManeuver}
+        {/* Traveled portion of the selected route during navigation */}
+        {state.uiMode === "navigation" && traveledCoords.length > 0 && (
+          <Mapbox.ShapeSource
+            id="traveledRoute"
+            shape={{ type: "LineString", coordinates: traveledCoords }}
+          >
+            <Mapbox.LineLayer
+              id="traveledLine"
+              style={{
+                lineColor: "#4CAF50",
+                lineWidth: 5,
+                lineCap: "round",
+                lineJoin: "round",
+              }}
+              aboveLayerID="routeFill"
             />
-            <NavigationControlCard
-              route={selectedRoute}
-              onCancelNavigation={handleCancelNavigation}
-              onRecalculateRoute={handleRecalculateRoute}
-            />
-          </>
+          </Mapbox.ShapeSource>
         )}
-      </View>
-    </>
+
+        {/* Selected route line */}
+        {selectedRoute && selectedRoute.geometry.coordinates.length > 0 && (
+          <Mapbox.ShapeSource
+            id="routeSource"
+            shape={{
+              type: "LineString",
+              coordinates: selectedRoute.geometry.coordinates,
+            }}
+          >
+            <Mapbox.LineLayer
+              id="routeFill"
+              style={{
+                lineColor:
+                  state.uiMode === "navigation" ? "#2196F3" : "#3b82f6",
+                lineWidth: state.uiMode === "navigation" ? 4 : 3,
+                lineCap: "round",
+                lineJoin: "round",
+                lineOpacity: state.uiMode === "navigation" ? 0.8 : 1,
+              }}
+            />
+          </Mapbox.ShapeSource>
+        )}
+
+        {/* Destination marker */}
+        {state.destination && (
+          <PointAnnotation id="selectedLocation" coordinate={state.destination}>
+            <View style={styles.destinationMarker}>
+              <View style={styles.destinationMarkerInner} />
+            </View>
+          </PointAnnotation>
+        )}
+
+        {/* Render alert pins */}
+        {pins.map((pin) => (
+          <PointAnnotation
+            key={`pin-${pin.id}`}
+            id={`pin-${pin.id}`}
+            coordinate={[pin.longitude, pin.latitude]}
+            onSelected={() => {
+              handleSelectPin(pin);
+              return true;
+            }}
+          >
+            <SimplifiedAlertPin type={pin.type} />
+          </PointAnnotation>
+        ))}
+
+        {/* User location marker */}
+        <LocationPuck pulsing={{ isEnabled: true }} visible={true} />
+      </MapView>
+
+      {/* Loading indicator for route calculations */}
+      {state.isLoading && (
+        <View style={styles.routeLoadingContainer}>
+          <ActivityIndicator size="large" color="#4285F4" />
+        </View>
+      )}
+
+      {/* Hamburger Menu Button */}
+      <HamburgerMenuButton 
+        onPress={() => dispatch({ type: "TOGGLE_SIDE_MENU" })} 
+      />
+      
+      {/* Incident Report Button (new) */}
+      <IncidentReportButton 
+        onPress={handleOpenReportModal} 
+      />
+
+      {/* QR Code Button */}
+      <QRCodeButton 
+        onPress={handleQRScan}
+      />
+
+      {/* Floating Search Button */}
+      <FloatingActionButton
+        iconName="search-location"
+        onPress={toggleSearchUI}
+        visible={state.uiMode === "map"}
+        backgroundColor="#4285F4"
+        size="medium"
+        style={{ bottom: 20, left: 20 }}
+      />
+
+      {/* Search and Route Control */}
+      <SearchAndRouteControl
+        userLocation={userLocation}
+        onDestinationSelected={handleDestinationSelected}
+        onStartNavigation={handleStartNavigation}
+        onCancelSearch={handleCancelSearch}
+        onRouteSelected={handleRouteSelected}
+        loading={routeLoading}
+        visible={isSearchVisible}
+        isNavigating={state.uiMode === "navigation"}
+      />
+
+      {/* Navigation Interface */}
+      {state.uiMode === "navigation" && selectedRoute && (
+        <NavigationInterface
+          route={selectedRoute}
+          instruction={currentInstruction}
+          distanceToNext={distanceToNextManeuver}
+          onCancelNavigation={handleCancelNavigation}
+          onRecalculateRoute={handleRecalculateRoute}
+        />
+      )}
+      
+      {/* Report Alert Functionality */}
+      {reportModalVisible && (
+        <ReportAlertButton
+          userLocation={
+            userLocation
+              ? {
+                  latitude: userLocation[1],
+                  longitude: userLocation[0],
+                }
+              : null
+          }
+          isVisible={reportModalVisible}
+          onClose={handleCloseReportModal}
+        />
+      )}
+
+      {/* Side Menu */}
+      <SideMenu
+        isVisible={state.isSideMenuOpen}
+        onClose={() => dispatch({ type: "TOGGLE_SIDE_MENU" })}
+        toLogin={() => {
+          if (pathname == "/auth") return;
+          router.push("/auth");
+          dispatch({ type: "TOGGLE_SIDE_MENU" });
+        }}
+        preferences={preferences}
+        onTogglePreference={handleTogglePreference}
+      />
+
+      {/* Pin Info Modal */}
+      <PinInfoModal
+        selectedPin={state.selectedPin}
+        onClose={() => dispatch({ type: "SELECT_PIN", payload: null })}
+      />
+
+      {/* Error display */}
+      {state.error && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{state.error}</Text>
+        </View>
+      )}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   page: {
     flex: 1,
+    backgroundColor: "#F5FCFF",
+  },
+  map: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#F5FCFF",
   },
-  container: {
-    height: "100%",
-    width: "100%",
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: "#555",
   },
-  map: {
-    flex: 1,
+  routeLoadingContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+  },
+  destinationMarker: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(59, 130, 246, 0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  destinationMarkerInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#3b82f6",
+    borderWidth: 2,
+    borderColor: "white",
+  },
+  errorContainer: {
+    position: "absolute",
+    top: 50,
+    left: 20,
+    right: 20,
+    backgroundColor: "rgba(244, 67, 54, 0.8)",
+    padding: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  errorText: {
+    color: "white",
+    fontWeight: "bold",
   },
 });
 

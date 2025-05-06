@@ -1,52 +1,31 @@
+// components/mapbox/QRScanButton.tsx
 import React from 'react';
-import { TouchableOpacity, StyleSheet } from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
-import { useColorScheme } from '@/hooks/useColorScheme';
-import { Colors } from '@/constants/Colors';
+import FloatingActionButton from '@/components/ui/FloatingActionButton';
 
 interface QRScanButtonProps {
+  id?: string;
   onPress: () => void;
   style?: object;
+  visible?: boolean;
 }
 
-const QRScanButton: React.FC<QRScanButtonProps> = ({ onPress, style }) => {
-  const colorScheme = useColorScheme() ?? 'light';
-  
+const QRScanButton: React.FC<QRScanButtonProps> = ({ 
+  id = 'qr-scan',
+  onPress, 
+  style,
+  visible = true 
+}) => {
   return (
-    <TouchableOpacity 
-      style={[styles.container, style]} 
+    <FloatingActionButton
+      id={id}
+      iconName="qrcode"
       onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <FontAwesome5 
-        name="qrcode" 
-        size={22} 
-        color={Colors[colorScheme].background}
-      />
-    </TouchableOpacity>
+      style={style}
+      backgroundColor="rgba(0, 0, 0, 0.6)"
+      size="medium"
+      visible={visible}
+    />
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    right: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-    zIndex: 10,
-  },
-});
 
 export default QRScanButton;
