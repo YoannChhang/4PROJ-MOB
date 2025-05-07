@@ -49,6 +49,7 @@ import IncidentReportButton from "@/components/mapbox/IncidentReportButton";
 import ReportAlertButton from "@/components/mapbox/ReportAlertButton";
 import LoginRequiredModal from "@/components/mapbox/LoginRequiredModal";
 import { RoutingPreference } from "@/components/settings/RoutingPreferences";
+import TrafficStatusIndicator from "@/components/mapbox/TrafficStatusIndicator";
 
 // Set Mapbox access token
 Mapbox.setAccessToken(Config.MAPBOX_PK as string);
@@ -164,10 +165,10 @@ const Map = () => {
 
   // Use reducer for app state
   const [state, dispatch] = useReducer(appReducer, initialAppState);
-  
+
   // State for incident report modal
   const [reportModalVisible, setReportModalVisible] = useState(false);
-  
+
   // State for login required modal
   const [loginPromptVisible, setLoginPromptVisible] = useState(false);
 
@@ -199,6 +200,10 @@ const Map = () => {
     },
   ]);
 
+  const [globalTrafficLevel, setGlobalTrafficLevel] = useState<
+    "low" | "moderate" | "heavy" | "severe" | "unknown"
+  >("unknown");
+
   // Update preferences when user data changes
   useEffect(() => {
     if (userData?.preferences) {
@@ -224,10 +229,8 @@ const Map = () => {
 
   // Handle preference toggle
   const handleTogglePreference = useCallback((id: string, value: boolean) => {
-    setPreferences(prev => 
-      prev.map(pref => 
-        pref.id === id ? { ...pref, enabled: value } : pref
-      )
+    setPreferences((prev) =>
+      prev.map((pref) => (pref.id === id ? { ...pref, enabled: value } : pref))
     );
 
     // Update user preferences if needed
@@ -312,7 +315,18 @@ const Map = () => {
     stopNavigation,
     chooseRoute,
     setRouteExcludes,
+    routeFeatures,
+    isFeatureDetectionInProgress,
   } = useRoute(userLocation, state.destination);
+
+  useEffect(() => {
+    if (selectedRoute && routeFeatures["primary"]) {
+      const primaryFeatures = routeFeatures["primary"];
+      setGlobalTrafficLevel(primaryFeatures.trafficLevel);
+    } else {
+      setGlobalTrafficLevel("unknown");
+    }
+  }, [selectedRoute, routeFeatures]);
 
   // Handle route recalculation
   const handleRecalculateRoute = useCallback(() => {
@@ -474,27 +488,27 @@ const Map = () => {
   const handleQRScan = useCallback(() => {
     router.push("/qr-scanner");
   }, [router]);
-  
+
   // Handle incident report button press
   const handleOpenReportModal = useCallback(() => {
     setReportModalVisible(true);
   }, []);
-  
+
   // Handle closing incident report modal
   const handleCloseReportModal = useCallback(() => {
     setReportModalVisible(false);
   }, []);
-  
+
   // Handle showing login prompt modal
   const handleShowLoginPrompt = useCallback(() => {
     setLoginPromptVisible(true);
   }, []);
-  
+
   // Handle closing login prompt modal
   const handleCloseLoginPrompt = useCallback(() => {
     setLoginPromptVisible(false);
   }, []);
-  
+
   // Navigate to login screen
   const navigateToLogin = useCallback(() => {
     setLoginPromptVisible(false);
@@ -719,21 +733,19 @@ const Map = () => {
       )}
 
       {/* Hamburger Menu Button */}
-      <HamburgerMenuButton 
-        onPress={() => dispatch({ type: "TOGGLE_SIDE_MENU" })} 
+      <HamburgerMenuButton
+        onPress={() => dispatch({ type: "TOGGLE_SIDE_MENU" })}
       />
-      
+
       {/* Incident Report Button (updated with login check) */}
-      <IncidentReportButton 
+      <IncidentReportButton
         onPress={handleOpenReportModal}
         isSignedIn={isSignedIn}
         onLoginRequired={handleShowLoginPrompt}
       />
 
       {/* QR Code Button */}
-      <QRCodeButton 
-        onPress={handleQRScan}
-      />
+      <QRCodeButton onPress={handleQRScan} />
 
       {/* Floating Search Button */}
       <FloatingActionButton
@@ -743,6 +755,17 @@ const Map = () => {
         backgroundColor="#4285F4"
         size="medium"
         style={{ bottom: 20, left: 20 }}
+      />
+
+      <TrafficStatusIndicator
+        trafficLevel={globalTrafficLevel}
+        compact={false}
+        style={{
+          position: "absolute",
+          top: 50,
+          right: 120, // Position next to other buttons
+          zIndex: 10,
+        }}
       />
 
       {/* Search and Route Control */}
@@ -755,6 +778,8 @@ const Map = () => {
         loading={routeLoading}
         visible={isSearchVisible}
         isNavigating={state.uiMode === "navigation"}
+        routeFeatures={routeFeatures} // Keep this prop
+        isFeatureDetectionInProgress={isFeatureDetectionInProgress()}
       />
 
       {/* Navigation Interface */}
@@ -765,9 +790,10 @@ const Map = () => {
           distanceToNext={distanceToNextManeuver}
           onCancelNavigation={handleCancelNavigation}
           onRecalculateRoute={handleRecalculateRoute}
+          routeFeatures={routeFeatures["primary"]} // Add route features
         />
       )}
-      
+
       {/* Report Alert Functionality */}
       {reportModalVisible && (
         <ReportAlertButton
@@ -783,7 +809,7 @@ const Map = () => {
           onClose={handleCloseReportModal}
         />
       )}
-      
+
       {/* Login Required Modal */}
       <LoginRequiredModal
         visible={loginPromptVisible}
