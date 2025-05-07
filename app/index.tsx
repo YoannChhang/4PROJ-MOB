@@ -47,6 +47,7 @@ import SideMenu from "@/components/settings/SideMenu";
 import QRCodeButton from "@/components/mapbox/QRCodeButton";
 import IncidentReportButton from "@/components/mapbox/IncidentReportButton";
 import ReportAlertButton from "@/components/mapbox/ReportAlertButton";
+import LoginRequiredModal from "@/components/mapbox/LoginRequiredModal";
 import { RoutingPreference } from "@/components/settings/RoutingPreferences";
 
 // Set Mapbox access token
@@ -166,6 +167,9 @@ const Map = () => {
   
   // State for incident report modal
   const [reportModalVisible, setReportModalVisible] = useState(false);
+  
+  // State for login required modal
+  const [loginPromptVisible, setLoginPromptVisible] = useState(false);
 
   // Use QR code context
   const { qrData, setQRData } = useQRCode();
@@ -480,6 +484,22 @@ const Map = () => {
   const handleCloseReportModal = useCallback(() => {
     setReportModalVisible(false);
   }, []);
+  
+  // Handle showing login prompt modal
+  const handleShowLoginPrompt = useCallback(() => {
+    setLoginPromptVisible(true);
+  }, []);
+  
+  // Handle closing login prompt modal
+  const handleCloseLoginPrompt = useCallback(() => {
+    setLoginPromptVisible(false);
+  }, []);
+  
+  // Navigate to login screen
+  const navigateToLogin = useCallback(() => {
+    setLoginPromptVisible(false);
+    router.push("/auth");
+  }, [router]);
 
   // Handle pin selection
   const handleSelectPin = useCallback((pin: PinRead) => {
@@ -703,9 +723,11 @@ const Map = () => {
         onPress={() => dispatch({ type: "TOGGLE_SIDE_MENU" })} 
       />
       
-      {/* Incident Report Button (new) */}
+      {/* Incident Report Button (updated with login check) */}
       <IncidentReportButton 
-        onPress={handleOpenReportModal} 
+        onPress={handleOpenReportModal}
+        isSignedIn={isSignedIn}
+        onLoginRequired={handleShowLoginPrompt}
       />
 
       {/* QR Code Button */}
@@ -761,6 +783,13 @@ const Map = () => {
           onClose={handleCloseReportModal}
         />
       )}
+      
+      {/* Login Required Modal */}
+      <LoginRequiredModal
+        visible={loginPromptVisible}
+        onClose={handleCloseLoginPrompt}
+        onNavigateToLogin={navigateToLogin}
+      />
 
       {/* Side Menu */}
       <SideMenu
