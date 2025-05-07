@@ -581,7 +581,7 @@ const Map = () => {
         scaleBarEnabled={false}
         attributionPosition={{
           bottom: state.uiMode === "navigation" ? 130 : 8,
-          left: 8,
+          right: 8,
         }}
         onPress={handleMapPress}
       >
