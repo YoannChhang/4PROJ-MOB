@@ -26,7 +26,7 @@ import { useQRCode } from "@/providers/QRCodeProvider";
 import { usePins } from "@/providers/PinProvider";
 import { useUser } from "@/providers/UserProvider";
 import Config from "react-native-config";
-import useRoute from "@/hooks/useRoute";
+import useRoute from "@/hooks/routing/useRoute";
 import locationTracker from "@/utils/locationTracker";
 import ttsManager from "@/utils/ttsManager";
 import { getExcludesFromPreferences } from "@/utils/routeUtils";
@@ -724,13 +724,6 @@ const Map = () => {
         {/* User location marker */}
         <LocationPuck pulsing={{ isEnabled: true }} visible={true} />
       </MapView>
-
-      {/* Loading indicator for route calculations */}
-      {state.isLoading && (
-        <View style={styles.routeLoadingContainer}>
-          <ActivityIndicator size="large" color="#4285F4" />
-        </View>
-      )}
 
       {/* Hamburger Menu Button */}
       <HamburgerMenuButton
