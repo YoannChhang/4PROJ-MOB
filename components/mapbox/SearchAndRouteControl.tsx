@@ -1,3 +1,4 @@
+// components/mapbox/SearchAndRouteControl.tsx
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
@@ -21,6 +22,17 @@ import mapboxService from "@/services/mapboxService";
 import { getExcludesFromPreferences } from "@/utils/routeUtils";
 import ttsManager from "@/utils/ttsManager";
 import Config from "react-native-config";
+import {
+  SearchBoxCore,
+  SearchBoxSuggestion,
+  SearchBoxAdministrativeUnitTypes,
+} from "@mapbox/search-js-core";
+import { useLocation } from "@/providers/LocationProvider";
+
+// Initialize Mapbox Search SDK
+const searchClient = new SearchBoxCore({
+  accessToken: Config.MAPBOX_PK as string,
+});
 
 interface SearchAndRouteControlProps {
   userLocation: [number, number] | null;
@@ -30,7 +42,6 @@ interface SearchAndRouteControlProps {
   onRouteSelected: (route: Route, alternateRoutes: Route[]) => void;
   loading: boolean;
   visible: boolean;
-  isNavigating: boolean;
   routeFeatures?: Record<string, RouteFeatures>;
   isFeatureDetectionInProgress?: boolean;
 }
@@ -43,7 +54,6 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
   onRouteSelected,
   loading,
   visible,
-  isNavigating,
   routeFeatures,
   isFeatureDetectionInProgress,
 }) => {
@@ -52,7 +62,7 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchBoxSuggestion[]>([]);
   const [searchMode, setSearchMode] = useState(true); // true = search, false = route selection
   const [selectedDestination, setSelectedDestination] = useState<
     [number, number] | null
@@ -65,6 +75,7 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
 
   // References
   const searchInputRef = useRef<TextInput>(null);
+  const { searchSession } = useLocation();
 
   // Get user preferences
   const { userData } = useUser();
@@ -95,73 +106,111 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
     }
   }, [searchMode]);
 
-  // Handle search input change
-  const handleSearch = useCallback(async (query: string) => {
-    setSearchQuery(query);
+  // Handle search input change - using Mapbox Search SDK
+  const handleSearch = useCallback(
+    async (query: string) => {
+      setSearchQuery(query);
 
-    if (query.length < 3) {
-      setSearchResults([]);
-      return;
-    }
+      if (query.length < 3) {
+        setSearchResults([]);
+        return;
+      }
 
-    setSearchLoading(true);
+      setSearchLoading(true);
 
-    try {
-      // Call the geocoding API
-      const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-          query
-        )}.json?` +
-          `access_token=${Config.MAPBOX_PK}&` +
-          "country=fr&" +
-          "language=fr&" +
-          "limit=5&" +
-          "types=place,address,poi"
-      );
+      try {
+        // Use the Mapbox Search SDK instead of direct API call
+        const response = await searchClient.suggest(query, {
+          sessionToken: searchSession,
+          country: "fr",
+          language: "fr",
+          navigation_profile: "driving",
+          types: new Set<SearchBoxAdministrativeUnitTypes>([
+            "place",
+            "region",
+            "district",
+            "postcode",
+            "locality",
+            "neighborhood",
+            "address",
+            "poi" as SearchBoxAdministrativeUnitTypes,
+          ]),
+        });
 
-      const data = await response.json();
-      setSearchResults(data.features || []);
-    } catch (error) {
-      console.error("Error searching:", error);
-      setSearchResults([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  }, []);
-
-  // Handle selection of a search result
-  const handleSelectSearchResult = useCallback(
-    async (feature: any) => {
-      const coordinates: [number, number] = feature.geometry.coordinates;
-      setSelectedDestination(coordinates);
-      setSearchMode(false);
-
-      // Notify parent component
-      onDestinationSelected(coordinates);
-
-      // If we have user location, fetch routes
-      if (userLocation) {
-        try {
-          // Get route excludes from preferences
-          const excludes = getExcludesFromPreferences(userData?.preferences);
-
-          // Fetch routes
-          const response = await mapboxService.getDirections(
-            userLocation,
-            coordinates,
-            { excludes: excludes.length > 0 ? excludes : undefined }
-          );
-
-          if (response.routes && response.routes.length > 0) {
-            setRoutes(response.routes);
-            setSelectedRouteIndex(0);
-
-            // Notify parent of selected route
-            onRouteSelected(response.routes[0], response.routes.slice(1));
-          }
-        } catch (error) {
-          console.error("Error fetching routes:", error);
+        if (response.suggestions) {
+          setSearchResults(response.suggestions);
+        } else {
+          setSearchResults([]);
         }
+      } catch (error) {
+        console.error("Error searching:", error);
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    },
+    [searchSession]
+  );
+
+  // Handle selection of a search result using the Mapbox Search SDK
+  const handleSelectSearchResult = useCallback(
+    async (suggestion: SearchBoxSuggestion) => {
+      setSearchLoading(true);
+
+      try {
+        // Retrieve full details of the selected suggestion
+        const response = await searchClient.retrieve(suggestion, {
+          sessionToken: searchSession,
+          language: "fr",
+        });
+
+        if (response.features && response.features[0].geometry) {
+          const { coordinates } = response.features[0].geometry;
+          const selectedCoords: [number, number] = [
+            coordinates[0],
+            coordinates[1],
+          ];
+
+          setSelectedDestination(selectedCoords);
+          setSearchMode(false);
+
+          // Notify parent component
+          onDestinationSelected(selectedCoords);
+
+          // If we have user location, fetch routes
+          if (userLocation) {
+            try {
+              // Get route excludes from preferences
+              const excludes = getExcludesFromPreferences(
+                userData?.preferences
+              );
+
+              // Fetch routes
+              const routeResponse = await mapboxService.getDirections(
+                userLocation,
+                selectedCoords,
+                { excludes: excludes.length > 0 ? excludes : undefined }
+              );
+
+              if (routeResponse.routes && routeResponse.routes.length > 0) {
+                setRoutes(routeResponse.routes);
+                setSelectedRouteIndex(0);
+
+                // Notify parent of selected route
+                onRouteSelected(
+                  routeResponse.routes[0],
+                  routeResponse.routes.slice(1)
+                );
+              }
+            } catch (error) {
+              console.error("Error fetching routes:", error);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error retrieving location details:", error);
+      } finally {
+        setSearchLoading(false);
       }
     },
     [
@@ -169,6 +218,7 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
       onDestinationSelected,
       onRouteSelected,
       userData?.preferences,
+      searchSession,
     ]
   );
 
@@ -235,6 +285,19 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
       <Text style={styles.featureText}>{label}</Text>
     </View>
   );
+
+  // Custom rendering for search results
+  const renderSearchItem = (suggestion: SearchBoxSuggestion) => {
+    return (
+      <MapboxSearchItem
+        feature={{
+          text: suggestion.name,
+          place_name: suggestion.place_formatted,
+        }}
+        onSelect={() => handleSelectSearchResult(suggestion)}
+      />
+    );
+  };
 
   return (
     <Animated.View
@@ -309,12 +372,10 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
               </View>
             ) : (
               <>
-                {searchResults.map((feature, index) => (
-                  <MapboxSearchItem
-                    key={feature.id || index}
-                    feature={feature}
-                    onSelect={() => handleSelectSearchResult(feature)}
-                  />
+                {searchResults.map((suggestion, index) => (
+                  <React.Fragment key={`suggestion-${index}`}>
+                    {renderSearchItem(suggestion)}
+                  </React.Fragment>
                 ))}
 
                 {searchResults.length === 0 && searchQuery.length > 2 && (

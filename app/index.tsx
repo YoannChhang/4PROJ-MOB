@@ -770,7 +770,6 @@ const Map = () => {
         onRouteSelected={handleRouteSelected}
         loading={routeLoading}
         visible={isSearchVisible}
-        isNavigating={state.uiMode === "navigation"}
         routeFeatures={routeFeatures} // Keep this prop
         isFeatureDetectionInProgress={isFeatureDetectionInProgress()}
       />
