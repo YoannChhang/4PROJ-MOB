@@ -1,69 +1,76 @@
-// src/hooks/routing/utils/mapboxApi.ts
-import mapboxService from '@/services/mapboxService';
+import axios from 'axios';
 import { MapboxDirectionsResponse } from '@/types/mapbox';
 import { Coordinate } from './types';
+import { MAPBOX_ACCESS_TOKEN } from './constants';
 
 /**
- * Helper function to fetch routes with specific exclusions
- * @param origin Starting point [longitude, latitude]
- * @param destination Ending point [longitude, latitude]
- * @param options Additional routing options
- * @returns Promise with Mapbox Directions API response
+ * Get driving directions between two points
+ * 
+ * @param origin Starting coordinates [longitude, latitude]
+ * @param destination Ending coordinates [longitude, latitude]
+ * @param options Additional options for the route
+ * @returns Promise with the directions response
  */
 export const fetchRoute = async (
   origin: Coordinate,
   destination: Coordinate,
-  options: {
-    excludes?: string[];
+  options?: {
     alternatives?: boolean;
+    excludes?: string[];
     language?: string;
-  } = {}
+  }
 ): Promise<MapboxDirectionsResponse> => {
-  // Use the existing mapboxService
-  return mapboxService.getDirections(origin, destination, {
-    excludes: options.excludes,
-    alternatives: options.alternatives,
-    language: options.language
+  // Format the request URL
+  let url = `https://api.mapbox.com/directions/v5/mapbox/driving-traffic/${origin[0]},${origin[1]};${destination[0]},${destination[1]}`;
+  
+  // Add query parameters
+  const params = new URLSearchParams({
+    access_token: MAPBOX_ACCESS_TOKEN,
+    alternatives: options?.alternatives !== undefined ? String(options.alternatives) : 'true',
+    geometries: 'geojson',
+    overview: 'full',
+    steps: 'true',
+    voice_instructions: 'true',
+    voice_units: 'metric',
+    language: options?.language || 'fr',
+    annotations: 'duration,distance,speed,congestion'
   });
+
+  // Add exclude parameters if needed
+  if (options?.excludes && options.excludes.length > 0) {
+    params.append('exclude', options.excludes.join(','));
+  }
+
+  url += `?${params.toString()}`;
+
+  try {
+    const response = await axios.get<MapboxDirectionsResponse>(url);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching directions from Mapbox:', error);
+    throw error;
+  }
 };
 
 /**
- * Get a simplified route without detailed steps and voice instructions
- * (useful for displaying routes quickly without navigation details)
- */
-export const fetchSimplifiedRoute = async (
-  origin: Coordinate,
-  destination: Coordinate,
-  excludes: string[] = []
-): Promise<MapboxDirectionsResponse> => {
-  // Use the existing mapboxService
-  return mapboxService.getSimpleRoute(origin, destination, {
-    excludes
-  });
-};
-
-/**
- * Recalculate a route when user goes off course
+ * Recalculate a route when the user goes off course
  */
 export const recalculateRoute = async (
   currentLocation: Coordinate,
   destination: Coordinate,
-  options: {
+  options?: {
     excludes?: string[];
     language?: string;
-  } = {}
+  }
 ): Promise<MapboxDirectionsResponse> => {
-  // Use the existing mapboxService
-  return mapboxService.recalculateRoute(currentLocation, destination, {
-    excludes: options.excludes,
-    language: options.language
-  });
-};
-
-/**
- * Check if the Mapbox API is accessible
- * @returns Promise resolving to boolean indicating if the API is accessible
- */
-export const checkMapboxConnection = async (): Promise<boolean> => {
-  return mapboxService.checkConnection();
+  // Simplify options for rerouting - we only need the main route
+  return fetchRoute(
+    currentLocation,
+    destination,
+    {
+      alternatives: false,
+      excludes: options?.excludes,
+      language: options?.language
+    }
+  );
 };

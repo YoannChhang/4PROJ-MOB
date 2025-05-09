@@ -1,14 +1,13 @@
-// src/hooks/routing/useRouteCalculation.ts
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { Route, MapboxDirectionsResponse } from '@/types/mapbox';
-import { fetchRoute } from './utils/mapboxApi';
-import { 
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Route, MapboxDirectionsResponse } from "@/types/mapbox";
+import { fetchRoute } from "./utils/mapboxApi";
+import {
   initializeRouteFeatures,
   calculatePathSimilarity,
-  analyzeTrafficLevel
-} from './utils/routeAnalysis';
-import { Coordinate, RouteFeatures } from './utils/types';
-import { formatDuration, formatDistance } from './utils/formatters';
+  analyzeTrafficLevel,
+} from "./utils/routeAnalysis";
+import { Coordinate, RouteFeatures } from "./utils/types";
+import { formatDuration, formatDistance } from "./utils/formatters";
 
 /**
  * Hook for handling route calculation logic with pre-computed features
@@ -27,8 +26,10 @@ export const useRouteCalculation = (
   const [alternateRoutes, setAlternateRoutes] = useState<Route[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [routeFeatures, setRouteFeatures] = useState<Record<string, RouteFeatures>>({});
-  
+  const [routeFeatures, setRouteFeatures] = useState<
+    Record<string, RouteFeatures>
+  >({});
+
   // Track if initial calculation has been done
   const initialCalculationDone = useRef(false);
 
@@ -46,10 +47,10 @@ export const useRouteCalculation = (
   ): Promise<Record<string, RouteFeatures>> => {
     // Initialize features with basic information
     const features: Record<string, RouteFeatures> = {};
-    
+
     routes.forEach((route, index) => {
       const routeId = index === 0 ? "primary" : `alternate-${index - 1}`;
-      
+
       features[routeId] = {
         hasHighways: false,
         hasTolls: false,
@@ -59,7 +60,7 @@ export const useRouteCalculation = (
         trafficLevel: analyzeTrafficLevel(route),
       };
     });
-    
+
     try {
       // Set up exclusion combinations to test
       const exclusionCombinations = [
@@ -67,38 +68,44 @@ export const useRouteCalculation = (
         { excludes: ["toll"], feature: "hasTolls" },
         { excludes: ["unpaved"], feature: "hasUnpavedRoads" },
       ];
-      
+
       // Fetch routes with each exclusion type
       console.log("Fetching routes with exclusions to detect features...");
       const exclusionResults = await Promise.all(
-        exclusionCombinations.map(combo => 
-          fetchRoute(originPoint, destinationPoint, { excludes: combo.excludes })
+        exclusionCombinations.map((combo) =>
+          fetchRoute(originPoint, destinationPoint, {
+            excludes: combo.excludes,
+          })
         )
       );
-      
+
       // Compare original routes with excluded routes to detect features
       routes.forEach((route, routeIndex) => {
-        const routeId = routeIndex === 0 ? "primary" : `alternate-${routeIndex - 1}`;
-        
+        const routeId =
+          routeIndex === 0 ? "primary" : `alternate-${routeIndex - 1}`;
+
         exclusionCombinations.forEach((combo, exclusionIndex) => {
           const excludedRoutes = exclusionResults[exclusionIndex].routes;
           if (!excludedRoutes.length) return;
-          
+
           const excludedRoute = excludedRoutes[0];
-          
+
           // Calculate duration difference
-          const durationDifference = Math.abs(excludedRoute.duration - route.duration);
-          const percentageDifference = (durationDifference / route.duration) * 100;
-          
+          const durationDifference = Math.abs(
+            excludedRoute.duration - route.duration
+          );
+          const percentageDifference =
+            (durationDifference / route.duration) * 100;
+
           // Calculate path similarity
           const pathSimilarity = calculatePathSimilarity(route, excludedRoute);
-          
+
           // Detect if route has the excluded feature
           // Feature is considered present if:
           // 1. Duration changes by more than 15% when excluding it, OR
           // 2. The path similarity is less than 75% when excluding it
           const hasFeature = percentageDifference > 15 || pathSimilarity < 0.75;
-          
+
           // Update feature status
           if (combo.feature && features[routeId]) {
             // @ts-ignore - We know this is safe because we control the feature names
@@ -106,93 +113,112 @@ export const useRouteCalculation = (
           }
         });
       });
-      
+
       console.log("Feature detection complete");
     } catch (error) {
       console.error("Error during route feature detection:", error);
       // Continue with basic features if advanced detection fails
     }
-    
+
     return features;
   };
 
   /**
    * Explicit function to calculate routes when requested
    */
-  const calculateRoutes = useCallback(async (
-    origin: Coordinate | null,
-    destination: Coordinate | null,
-    excludes?: string[]
-  ) => {
-    if (!origin || !destination) {
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Fetch routes from Mapbox API
-      const response = await fetchRoute(origin, destination, {
-        excludes: excludes || [],
-        alternatives: true
-      });
-
-      if (response.routes.length > 0) {
-        const primaryRoute = response.routes[0];
-        const otherRoutes = response.routes.slice(1);
-
-        // Set initial routes
-        setSelectedRoute(primaryRoute);
-        setAlternateRoutes(otherRoutes);
-
-        // Calculate all features at once
-        const allRoutes = [primaryRoute, ...otherRoutes];
-        console.log("Calculating route features...");
-        const features = await calculateAllRouteFeatures(allRoutes, origin, destination);
-        setRouteFeatures(features);
-      } else {
-        setError("No routes found");
+  const calculateRoutes = useCallback(
+    async (
+      origin: Coordinate | null,
+      destination: Coordinate | null,
+      excludes?: string[]
+    ) => {
+      if (!origin || !destination) {
+        return;
       }
-    } catch (err) {
-      console.error("Error fetching routes:", err);
-      setError("Failed to fetch routes");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Fetch routes from Mapbox API
+        const response = await fetchRoute(origin, destination, {
+          excludes: excludes || [],
+          alternatives: true,
+        });
+
+        if (response.routes.length > 0) {
+          const primaryRoute = response.routes[0];
+          const otherRoutes = response.routes.slice(1);
+
+          // Set initial routes
+          setSelectedRoute(primaryRoute);
+          setAlternateRoutes(otherRoutes);
+
+          // Calculate all features at once
+          const allRoutes = [primaryRoute, ...otherRoutes];
+          console.log("Calculating route features...");
+          const features = await calculateAllRouteFeatures(
+            allRoutes,
+            origin,
+            destination
+          );
+          setRouteFeatures(features);
+        } else {
+          setError("No routes found");
+        }
+      } catch (err) {
+        console.error("Error fetching routes:", err);
+        setError("Failed to fetch routes");
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
 
   // Do initial calculation only once if origin and destination are provided
   useEffect(() => {
-    if (!initialCalculationDone.current && initialOrigin && initialDestination) {
+    if (
+      !initialCalculationDone.current &&
+      initialOrigin &&
+      initialDestination
+    ) {
       initialCalculationDone.current = true;
       calculateRoutes(initialOrigin, initialDestination, initialRouteExcludes);
     }
-  }, []);
+  }, [
+    initialOrigin,
+    initialDestination,
+    initialRouteExcludes,
+    calculateRoutes,
+  ]);
 
   /**
    * Choose a different route
    * @param route Route to select
    * @param previousRoute Previously selected route
    */
-  const chooseRoute = useCallback((route: Route, previousRoute: Route | null) => {
-    // Don't do anything if the same route is selected
-    if (previousRoute === route) return;
+  const chooseRoute = useCallback(
+    (route: Route, previousRoute: Route | null) => {
+      // Don't do anything if the same route is selected
+      if (previousRoute === route) return;
 
-    // Update selected route
-    setSelectedRoute(route);
+      // Update selected route
+      setSelectedRoute(route);
 
-    // Update alternate routes (filter out the newly selected route)
-    if (previousRoute) {
-      setAlternateRoutes((prev) =>
-        [...prev.filter((r) => r !== route), previousRoute].sort(
-          (a, b) => a.duration - b.duration
-        )
-      );
-    } else {
-      setAlternateRoutes((prev) => prev.filter((r) => r !== route));
-    }
-  }, []);
+      // Update alternate routes (filter out the newly selected route)
+      if (previousRoute) {
+        setAlternateRoutes((prev) =>
+          [...prev.filter((r) => r !== route), previousRoute].sort(
+            (a, b) => a.duration - b.duration
+          )
+        );
+      } else {
+        setAlternateRoutes((prev) => prev.filter((r) => r !== route));
+      }
+    },
+    []
+  );
 
   return {
     selectedRoute,
@@ -204,6 +230,6 @@ export const useRouteCalculation = (
     routeFeatures,
     setRouteFeatures,
     chooseRoute,
-    calculateRoutes  // Expose this function
+    calculateRoutes, // Expose this function
   };
 };

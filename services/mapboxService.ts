@@ -1,9 +1,7 @@
 import axios from 'axios';
 import { MapboxDirectionsResponse } from '@/types/mapbox';
-import Config from 'react-native-config';
+import { MAPBOX_ACCESS_TOKEN } from '@/hooks/routing/utils/constants';
 
-// Mapbox API access token from environment variables
-const MAPBOX_ACCESS_TOKEN = Config.MAPBOX_PK;
 
 /**
  * Service to interact with Mapbox Directions API
@@ -27,7 +25,7 @@ class MapboxService {
     }
   ): Promise<MapboxDirectionsResponse> {
     // Format the request URL
-    let url = `https://api.mapbox.com/directions/v5/mapbox/driving/${origin[0]},${origin[1]};${destination[0]},${destination[1]}`;
+    let url = `https://api.mapbox.com/directions/v5/mapbox/driving-traffic/${origin[0]},${origin[1]};${destination[0]},${destination[1]}`;
     
     // Add query parameters
     const params = new URLSearchParams({
@@ -70,7 +68,7 @@ class MapboxService {
     }
   ): Promise<MapboxDirectionsResponse> {
     // Format the request URL
-    let url = `https://api.mapbox.com/directions/v5/mapbox/driving/${origin[0]},${origin[1]};${destination[0]},${destination[1]}`;
+    let url = `https://api.mapbox.com/directions/v5/mapbox/driving-traffic/${origin[0]},${origin[1]};${destination[0]},${destination[1]}`;
     
     // Add query parameters
     const params = new URLSearchParams({

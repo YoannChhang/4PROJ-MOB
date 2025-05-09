@@ -1,8 +1,8 @@
-// src/hooks/routing/utils/routeAnalysis.ts
-import * as turf from '@turf/turf';
-import { Route } from '@/types/mapbox';
-import { RouteFeatures, TrafficLevel } from './types';
-import { formatDuration, formatDistance } from './formatters';
+// hooks/routing/utils/routeAnalysis.ts
+import * as turf from "@turf/turf";
+import { Route } from "@/types/mapbox";
+import { RouteFeatures, TrafficLevel, Coordinate } from "./types";
+import { formatDuration, formatDistance } from "./formatters";
 
 /**
  * Analyze traffic level from route congestion data
@@ -10,7 +10,6 @@ import { formatDuration, formatDistance } from './formatters';
  * @returns Traffic level category
  */
 export const analyzeTrafficLevel = (route: Route): TrafficLevel => {
-  // Track congestion level counts
   let congestionLevels: Record<string, number> = {
     low: 0,
     moderate: 0,
@@ -18,8 +17,6 @@ export const analyzeTrafficLevel = (route: Route): TrafficLevel => {
     severe: 0,
     unknown: 0,
   };
-
-  // Count occurrences of each congestion level
   let totalSegments = 0;
 
   route.legs.forEach((leg) => {
@@ -41,15 +38,11 @@ export const analyzeTrafficLevel = (route: Route): TrafficLevel => {
     return "unknown";
   }
 
-  // Calculate percentages
   const heavyPercent =
-    ((congestionLevels["heavy"] + congestionLevels["severe"]) /
-      totalSegments) *
+    ((congestionLevels["heavy"] + congestionLevels["severe"]) / totalSegments) *
     100;
-  const moderatePercent =
-    (congestionLevels["moderate"] / totalSegments) * 100;
+  const moderatePercent = (congestionLevels["moderate"] / totalSegments) * 100;
 
-  // Determine dominant traffic level
   if (heavyPercent > 20) {
     return "heavy";
   } else if (moderatePercent > 30 || heavyPercent > 10) {
@@ -68,7 +61,6 @@ export const initializeRouteFeatures = (
   routes: Route[]
 ): Record<string, RouteFeatures> => {
   const features: Record<string, RouteFeatures> = {};
-
   routes.forEach((route, index) => {
     const routeId = index === 0 ? "primary" : `alternate-${index - 1}`;
     features[routeId] = {
@@ -80,49 +72,37 @@ export const initializeRouteFeatures = (
       trafficLevel: analyzeTrafficLevel(route),
     };
   });
-
   return features;
 };
 
 /**
  * Calculate path similarity between two routes
- * Returns a value between 0 (completely different) and 1 (identical)
- * @param routeA First route 
+ * @param routeA First route
  * @param routeB Second route
  * @returns Similarity score between 0 and 1
  */
-export const calculatePathSimilarity = (routeA: Route, routeB: Route): number => {
+export const calculatePathSimilarity = (
+  routeA: Route,
+  routeB: Route
+): number => {
   try {
-    // Create line strings from route geometries
     const lineA = turf.lineString(routeA.geometry.coordinates);
     const lineB = turf.lineString(routeB.geometry.coordinates);
-
-    // Use Turf.js to calculate bounding box of both routes
     const boundsA = turf.bbox(lineA);
     const boundsB = turf.bbox(lineB);
-
-    // Calculate overlap of bounding boxes
     const overlapArea = calculateBoundsOverlap(boundsA, boundsB);
-
-    // Calculate total area
     const areaA = (boundsA[2] - boundsA[0]) * (boundsA[3] - boundsA[1]);
     const areaB = (boundsB[2] - boundsB[0]) * (boundsB[3] - boundsB[1]);
     const maxArea = Math.max(areaA, areaB);
-
-    // Calculate overlap ratio
-    const overlapRatio = overlapArea / maxArea;
-
-    // Also consider path length similarity
+    const overlapRatio = maxArea > 0 ? overlapArea / maxArea : 0; // Avoid division by zero
     const lengthA = turf.length(lineA);
     const lengthB = turf.length(lineB);
-    const lengthRatio =
-      Math.min(lengthA, lengthB) / Math.max(lengthA, lengthB);
-
-    // Combine metrics (weighted average)
+    const maxLength = Math.max(lengthA, lengthB);
+    const lengthRatio = maxLength > 0 ? Math.min(lengthA, lengthB) / maxLength : 0; // Avoid division by zero
     return overlapRatio * 0.7 + lengthRatio * 0.3;
   } catch (error) {
     console.error("Error calculating path similarity:", error);
-    return 0.5; // Default to moderate similarity on error
+    return 0.5;
   }
 };
 
@@ -136,7 +116,6 @@ export const calculateBoundsOverlap = (
   boundsA: number[],
   boundsB: number[]
 ): number => {
-  // Check if the bounding boxes overlap
   const xOverlap = Math.max(
     0,
     Math.min(boundsA[2], boundsB[2]) - Math.max(boundsA[0], boundsB[0])
@@ -145,8 +124,6 @@ export const calculateBoundsOverlap = (
     0,
     Math.min(boundsA[3], boundsB[3]) - Math.max(boundsA[1], boundsB[1])
   );
-
-  // Return the area of overlap
   return xOverlap * yOverlap;
 };
 
@@ -154,36 +131,30 @@ export const calculateBoundsOverlap = (
  * Find the nearest point on a route to the user's current location
  * @param route Route to check against
  * @param userLocation User's current location
- * @returns Object with distance and position information
+ * @returns Object with distance (from route), index (of segment), and location (distance along route)
  */
 export const findNearestPointOnRoute = (
   route: Route,
-  userLocation: number[] | [number, number]
+  userLocation: Coordinate
 ): {
-  distance: number;
-  index: number;
-  location: number;
+  distance: number; // Distance from the route line
+  index: number;    // Index of the segment on the route line that is closest
+  location: number; // Distance from the start of the route to the closest point on the route line
 } => {
   try {
-    // Convert route to a LineString
     const routeLine = turf.lineString(route.geometry.coordinates);
-    
-    // Find nearest point on the route line
     const userPoint = turf.point(userLocation);
-    const nearestPoint = turf.nearestPointOnLine(routeLine, userPoint, { units: 'meters' });
-    
+    const nearestPoint = turf.nearestPointOnLine(routeLine, userPoint, {
+      units: "meters",
+    });
     return {
       distance: nearestPoint.properties.dist || Infinity,
       index: nearestPoint.properties.index || 0,
-      location: nearestPoint.properties.location || 0
+      location: nearestPoint.properties.location || 0, // This is distance along the line in km, convert if needed or ensure consistency
     };
   } catch (error) {
     console.error("Error finding nearest point on route:", error);
-    return {
-      distance: Infinity,
-      index: 0,
-      location: 0
-    };
+    return { distance: Infinity, index: 0, location: 0 };
   }
 };
 
@@ -194,10 +165,12 @@ export const findNearestPointOnRoute = (
  * @returns Distance in meters
  */
 export const calculateDistanceInMeters = (
-  pointA: number[] | [number, number],
-  pointB: number[] | [number, number]
+  pointA: Coordinate,
+  pointB: Coordinate
 ): number => {
-  return turf.distance(turf.point(pointA), turf.point(pointB), { units: 'meters' }) * 1000;
+  // turf.distance with units: "meters" already returns meters.
+  // The multiplication by 1000 was incorrect.
+  return turf.distance(turf.point(pointA), turf.point(pointB), { units: "meters" });
 };
 
 /**
@@ -209,13 +182,11 @@ export const calculateDistanceInMeters = (
  */
 export const hasArrivedAtDestination = (
   route: Route,
-  userLocation: number[] | [number, number],
-  threshold: number = 20
+  userLocation: Coordinate,
+  threshold: number = 20 // meters
 ): boolean => {
   if (!route || !route.geometry.coordinates.length) return false;
-  
-  const destination = route.geometry.coordinates[route.geometry.coordinates.length - 1];
-  const distance = calculateDistanceInMeters(userLocation, destination);
-  
-  return distance < threshold;
+  const destination = route.geometry.coordinates[route.geometry.coordinates.length - 1] as Coordinate;
+  const distanceToDest = calculateDistanceInMeters(userLocation, destination);
+  return distanceToDest < threshold;
 };

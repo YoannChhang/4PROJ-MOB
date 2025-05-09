@@ -1,5 +1,5 @@
 // src/hooks/routing/utils/types.ts
-import { Route } from '@/types/mapbox';
+import { Route } from "@/types/mapbox";
 
 /**
  * Enhanced route features interface to track special route characteristics
@@ -16,7 +16,7 @@ export interface RouteFeatures {
 /**
  * Traffic levels on a route
  */
-export type TrafficLevel = 'low' | 'moderate' | 'heavy' | 'severe' | 'unknown';
+export type TrafficLevel = "low" | "moderate" | "heavy" | "severe" | "unknown";
 
 /**
  * Parameters for calculating a route
@@ -45,12 +45,14 @@ export interface RouteCalculationState {
  */
 export interface NavigationState {
   isNavigating: boolean;
-  liveUserLocation: [number, number] | null;
-  traveledCoords: [number, number][];
+  liveUserLocation: Coordinate | null;
+  traveledCoords: Coordinate[];
   currentStepIndex: number;
   currentInstruction: string;
   distanceToNextManeuver: number | null;
-  announcementsMade: Set<number>;
+  remainingDistance: number;
+  remainingDuration: number;
+  estimatedArrival: Date | null;
 }
 
 /**

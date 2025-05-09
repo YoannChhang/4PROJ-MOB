@@ -6,7 +6,6 @@ export { default as useRoute } from './useRoute';
 
 // Specialized hooks 
 export { useRouteCalculation } from './useRouteCalculation';
-export { useRouteFeatures } from './useRouteFeatures';
 export { useRouteNavigation } from './useRouteNavigation';
 export { useRouteRerouting } from './useRouteRerouting';
 

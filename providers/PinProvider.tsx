@@ -38,11 +38,8 @@ export const PinProvider: React.FC<PinProviderProps> = ({
     setError(null);
     
     try {
-      console.log('Fetching pins at:', { longitude, latitude, radiusKm });
       const response = await fetchNearbyPins(longitude, latitude, radiusKm);
       if (response.data) {
-        // Log the number of pins fetched for debugging
-        console.log(`Fetched ${response.data.length} pins from API`);
         setPins(response.data);
       }
     } catch (err) {

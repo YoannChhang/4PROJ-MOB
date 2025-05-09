@@ -144,9 +144,6 @@ export const fetchNearbyPins = async (
   latitude: number,
   radiusKm: number = 10
 ): Promise<ApiResponse<PinRead[]>> => {
-  // Log the auth header for debugging
-  const authHeader = api.defaults.headers.common["Authorization"];
-  console.log(`Fetching pins with auth: ${authHeader ? "YES" : "NO"}`);
 
   return api.post("/pins/nearby", {
     longitude,
