@@ -10,12 +10,13 @@ import {
   TextInput,
   ActivityIndicator,
   ScrollView,
+  Keyboard,
 } from "react-native";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Colors } from "@/constants/Colors";
 import { Route, RouteFeatures } from "@/types/mapbox";
-import * as Location from "expo-location";
+import * as Location from 'expo-location';
 import { useUser } from "@/providers/UserProvider";
 import MapboxSearchItem from "./MapboxSearchItem";
 import mapboxService from "@/services/mapboxService";
@@ -72,7 +73,7 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
   const [routes, setRoutes] = useState<Route[]>([]);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
   const [searchLoading, setSearchLoading] = useState(false);
-
+  
   // References
   const searchInputRef = useRef<TextInput>(null);
   const { searchSession } = useLocation();
@@ -95,6 +96,9 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
         duration: 300,
         useNativeDriver: true,
       }).start();
+      
+      // Dismiss keyboard when panel is hidden
+      Keyboard.dismiss();
     }
   }, [visible, slideAnim]);
 
@@ -173,6 +177,9 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
 
           setSelectedDestination(selectedCoords);
           setSearchMode(false);
+
+          // Dismiss keyboard
+          Keyboard.dismiss();
 
           // Notify parent component
           onDestinationSelected(selectedCoords);
@@ -257,6 +264,10 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
   // Handle back button in route selection mode
   const handleBackToSearch = useCallback(() => {
     setSearchMode(true);
+    
+    // Ensure keyboard is dismissed
+    Keyboard.dismiss();
+    
     onCancelSearch();
   }, [onCancelSearch]);
 
@@ -345,7 +356,6 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
                 placeholder="Rechercher un lieu"
                 value={searchQuery}
                 onChangeText={handleSearch}
-                autoFocus
               />
               {searchQuery.length > 0 && (
                 <TouchableOpacity
