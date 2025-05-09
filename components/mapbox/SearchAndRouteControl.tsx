@@ -16,7 +16,7 @@ import { FontAwesome5 } from "@expo/vector-icons";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Colors } from "@/constants/Colors";
 import { Route, RouteFeatures } from "@/types/mapbox";
-import * as Location from 'expo-location';
+import * as Location from "expo-location";
 import { useUser } from "@/providers/UserProvider";
 import MapboxSearchItem from "./MapboxSearchItem";
 import mapboxService from "@/services/mapboxService";
@@ -41,10 +41,18 @@ interface SearchAndRouteControlProps {
   onStartNavigation: () => void;
   onCancelSearch: () => void;
   onRouteSelected: (route: Route, alternateRoutes: Route[]) => void;
+  calculateRoutes: (
+    origin: [number, number] | null,
+    destination: [number, number] | null,
+    excludes?: string[]
+  ) => Promise<void>;
   loading: boolean;
   visible: boolean;
   routeFeatures?: Record<string, RouteFeatures>;
-  isFeatureDetectionInProgress?: boolean;
+  selectedRoute: Route | null;
+  alternateRoutes: Route[];
+  selectedRouteIndex: number;
+  setSelectedRouteIndex: (index: number) => void;
 }
 
 const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
@@ -53,10 +61,14 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
   onStartNavigation,
   onCancelSearch,
   onRouteSelected,
+  calculateRoutes,
   loading,
   visible,
   routeFeatures,
-  isFeatureDetectionInProgress,
+  selectedRoute,
+  alternateRoutes,
+  selectedRouteIndex,
+  setSelectedRouteIndex,
 }) => {
   // Animation values
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -65,15 +77,9 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchBoxSuggestion[]>([]);
   const [searchMode, setSearchMode] = useState(true); // true = search, false = route selection
-  const [selectedDestination, setSelectedDestination] = useState<
-    [number, number] | null
-  >(null);
 
-  // Route state
-  const [routes, setRoutes] = useState<Route[]>([]);
-  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
   const [searchLoading, setSearchLoading] = useState(false);
-  
+
   // References
   const searchInputRef = useRef<TextInput>(null);
   const { searchSession } = useLocation();
@@ -96,7 +102,7 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
         duration: 300,
         useNativeDriver: true,
       }).start();
-      
+
       // Dismiss keyboard when panel is hidden
       Keyboard.dismiss();
     }
@@ -105,8 +111,7 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
   // Reset state when returning to search mode
   useEffect(() => {
     if (searchMode) {
-      setSelectedDestination(null);
-      setRoutes([]);
+      setSelectedRouteIndex(0);
     }
   }, [searchMode]);
 
@@ -175,7 +180,6 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
             coordinates[1],
           ];
 
-          setSelectedDestination(selectedCoords);
           setSearchMode(false);
 
           // Dismiss keyboard
@@ -192,23 +196,8 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
                 userData?.preferences
               );
 
-              // Fetch routes
-              const routeResponse = await mapboxService.getDirections(
-                userLocation,
-                selectedCoords,
-                { excludes: excludes.length > 0 ? excludes : undefined }
-              );
-
-              if (routeResponse.routes && routeResponse.routes.length > 0) {
-                setRoutes(routeResponse.routes);
-                setSelectedRouteIndex(0);
-
-                // Notify parent of selected route
-                onRouteSelected(
-                  routeResponse.routes[0],
-                  routeResponse.routes.slice(1)
-                );
-              }
+              // Manually calculate routes
+              await calculateRoutes(userLocation, selectedCoords, excludes);
             } catch (error) {
               console.error("Error fetching routes:", error);
             }
@@ -223,26 +212,33 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
     [
       userLocation,
       onDestinationSelected,
-      onRouteSelected,
       userData?.preferences,
       searchSession,
+      calculateRoutes,
     ]
   );
 
   // Select a different route
   const handleSelectRoute = useCallback(
     (index: number) => {
-      if (index >= 0 && index < routes.length) {
+      if (index >= 0 && index < alternateRoutes.length + 1) {
         setSelectedRouteIndex(index);
 
         // Update the selected route in the parent
-        const newSelectedRoute = routes[index];
-        const newAlternateRoutes = routes.filter((_, i) => i !== index);
+        if (index === 0 && selectedRoute) {
+          onRouteSelected(selectedRoute, alternateRoutes);
+        } else if (index > 0 && alternateRoutes.length >= index) {
+          const newSelectedRoute = alternateRoutes[index - 1];
+          const newAlternateRoutes = [
+            ...(selectedRoute ? [selectedRoute] : []),
+            ...alternateRoutes.filter((_, i) => i !== index - 1),
+          ].sort((a, b) => a.duration - b.duration);
 
-        onRouteSelected(newSelectedRoute, newAlternateRoutes);
+          onRouteSelected(newSelectedRoute, newAlternateRoutes);
+        }
       }
     },
-    [routes, onRouteSelected]
+    [alternateRoutes, selectedRoute, onRouteSelected, setSelectedRouteIndex]
   );
 
   // Handle start navigation button
@@ -264,10 +260,10 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
   // Handle back button in route selection mode
   const handleBackToSearch = useCallback(() => {
     setSearchMode(true);
-    
+
     // Ensure keyboard is dismissed
     Keyboard.dismiss();
-    
+
     onCancelSearch();
   }, [onCancelSearch]);
 
@@ -428,58 +424,57 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
                 </Text>
               </View>
             ) : (
-              routes.map((route, index) => {
-                // Get features for this route
-                const features =
-                  routeFeatures?.[
-                    index === 0 ? "primary" : `alternate-${index - 1}`
-                  ];
-
-                return (
+              <>
+                {selectedRoute && (
                   <TouchableOpacity
-                    key={index}
+                    key="primary-route"
                     style={[
                       styles.routeOption,
-                      index === selectedRouteIndex && styles.selectedRoute,
+                      selectedRouteIndex === 0 && styles.selectedRoute,
                     ]}
-                    onPress={() => handleSelectRoute(index)}
+                    onPress={() => handleSelectRoute(0)}
                   >
+                    {/* Primary route display */}
                     <View style={styles.routeDetails}>
                       <Text style={styles.routeDuration}>
-                        {features?.estimatedTime ||
-                          formatDuration(route.duration)}
+                        {routeFeatures?.["primary"]?.estimatedTime ||
+                          formatDuration(selectedRoute.duration)}
                       </Text>
                       <Text style={styles.routeDistance}>
-                        {features?.distance || formatDistance(route.distance)}
+                        {routeFeatures?.["primary"]?.distance ||
+                          formatDistance(selectedRoute.distance)}
                       </Text>
                     </View>
 
                     <View style={styles.routeTypeContainer}>
                       <Text style={styles.routeType}>
-                        {route.weight_name === "auto"
+                        {selectedRoute.weight_name === "auto"
                           ? "Recommandé"
-                          : route.weight_name === "shortest"
+                          : selectedRoute.weight_name === "shortest"
                           ? "Le plus court"
                           : "Le plus rapide"}
                       </Text>
 
                       {/* Traffic indicator */}
-                      {features?.trafficLevel &&
-                        features.trafficLevel !== "unknown" && (
+                      {routeFeatures?.["primary"]?.trafficLevel &&
+                        routeFeatures?.["primary"].trafficLevel !==
+                          "unknown" && (
                           <View
                             style={[
                               styles.trafficBadge,
-                              features.trafficLevel === "low"
+                              routeFeatures?.["primary"].trafficLevel === "low"
                                 ? styles.trafficLow
-                                : features.trafficLevel === "moderate"
+                                : routeFeatures?.["primary"].trafficLevel ===
+                                  "moderate"
                                 ? styles.trafficModerate
                                 : styles.trafficHeavy,
                             ]}
                           >
                             <Text style={styles.trafficText}>
-                              {features.trafficLevel === "low"
+                              {routeFeatures?.["primary"].trafficLevel === "low"
                                 ? "Fluide"
-                                : features.trafficLevel === "moderate"
+                                : routeFeatures?.["primary"].trafficLevel ===
+                                  "moderate"
                                 ? "Modéré"
                                 : "Dense"}
                             </Text>
@@ -487,9 +482,9 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
                         )}
                     </View>
 
-                    {/* Features badges */}
+                    {/* Feature badges */}
                     <View style={styles.featureBadges}>
-                      {features?.hasTolls && (
+                      {routeFeatures?.["primary"]?.hasTolls && (
                         <FeatureBadge
                           icon="receipt"
                           label="Péage"
@@ -497,7 +492,7 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
                         />
                       )}
 
-                      {features?.hasHighways && (
+                      {routeFeatures?.["primary"]?.hasHighways && (
                         <FeatureBadge
                           icon="road"
                           label="Autoroute"
@@ -505,29 +500,107 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
                         />
                       )}
 
-                      {features?.hasUnpavedRoads && (
+                      {routeFeatures?.["primary"]?.hasUnpavedRoads && (
                         <FeatureBadge
                           icon="truck-monster"
                           label="Non pavé"
                           color="#795548"
                         />
                       )}
-
-                      {isFeatureDetectionInProgress && (
-                        <View style={styles.featureLoadingIndicator}>
-                          <ActivityIndicator size="small" color="#777" />
-                          <Text style={styles.featureLoadingText}>
-                            Analyse en cours...
-                          </Text>
-                        </View>
-                      )}
                     </View>
                   </TouchableOpacity>
-                );
-              })
+                )}
+
+                {alternateRoutes.map((route, index) => {
+                  // Get features for this route
+                  const features = routeFeatures?.[`alternate-${index}`];
+
+                  return (
+                    <TouchableOpacity
+                      key={`alternate-${index}`}
+                      style={[
+                        styles.routeOption,
+                        selectedRouteIndex === index + 1 &&
+                          styles.selectedRoute,
+                      ]}
+                      onPress={() => handleSelectRoute(index + 1)}
+                    >
+                      <View style={styles.routeDetails}>
+                        <Text style={styles.routeDuration}>
+                          {features?.estimatedTime ||
+                            formatDuration(route.duration)}
+                        </Text>
+                        <Text style={styles.routeDistance}>
+                          {features?.distance || formatDistance(route.distance)}
+                        </Text>
+                      </View>
+
+                      <View style={styles.routeTypeContainer}>
+                        <Text style={styles.routeType}>
+                          {route.weight_name === "auto"
+                            ? "Alternative"
+                            : route.weight_name === "shortest"
+                            ? "Le plus court"
+                            : "Le plus rapide"}
+                        </Text>
+
+                        {/* Traffic indicator */}
+                        {features?.trafficLevel &&
+                          features.trafficLevel !== "unknown" && (
+                            <View
+                              style={[
+                                styles.trafficBadge,
+                                features.trafficLevel === "low"
+                                  ? styles.trafficLow
+                                  : features.trafficLevel === "moderate"
+                                  ? styles.trafficModerate
+                                  : styles.trafficHeavy,
+                              ]}
+                            >
+                              <Text style={styles.trafficText}>
+                                {features.trafficLevel === "low"
+                                  ? "Fluide"
+                                  : features.trafficLevel === "moderate"
+                                  ? "Modéré"
+                                  : "Dense"}
+                              </Text>
+                            </View>
+                          )}
+                      </View>
+
+                      {/* Features badges */}
+                      <View style={styles.featureBadges}>
+                        {features?.hasTolls && (
+                          <FeatureBadge
+                            icon="receipt"
+                            label="Péage"
+                            color="#FF9800"
+                          />
+                        )}
+
+                        {features?.hasHighways && (
+                          <FeatureBadge
+                            icon="road"
+                            label="Autoroute"
+                            color="#2196F3"
+                          />
+                        )}
+
+                        {features?.hasUnpavedRoads && (
+                          <FeatureBadge
+                            icon="truck-monster"
+                            label="Non pavé"
+                            color="#795548"
+                          />
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </>
             )}
           </ScrollView>
-          {routes.length > 0 && (
+          {(selectedRoute || alternateRoutes.length > 0) && (
             <View style={styles.trafficInfo}>
               <FontAwesome5 name="info-circle" size={14} color="#4285F4" />
               <Text style={styles.trafficInfoText}>
@@ -539,7 +612,7 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
             <TouchableOpacity
               style={styles.startNavigationButton}
               onPress={handleStartNavigation}
-              disabled={routes.length === 0}
+              disabled={!selectedRoute}
             >
               <FontAwesome5 name="play" size={16} color="#fff" />
               <Text style={styles.startNavigationText}>Démarrer</Text>
@@ -745,19 +818,6 @@ const styles = StyleSheet.create({
   featureText: {
     fontSize: 10,
     color: "#555",
-    marginLeft: 4,
-  },
-  featureLoadingIndicator: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f5f5f5",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  featureLoadingText: {
-    fontSize: 10,
-    color: "#777",
     marginLeft: 4,
   },
   trafficBadge: {

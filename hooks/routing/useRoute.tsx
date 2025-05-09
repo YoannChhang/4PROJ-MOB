@@ -1,7 +1,6 @@
 // src/hooks/routing/useRoute.ts
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useMemo } from 'react';
 import { useRouteCalculation } from './useRouteCalculation';
-import { useRouteFeatures } from './useRouteFeatures';
 import { useRouteNavigation } from './useRouteNavigation';
 import { useRouteRerouting } from './useRouteRerouting';
 import { Route } from '@/types/mapbox';
@@ -30,30 +29,15 @@ export default function useRoute(
     error,
     routeFeatures,
     setRouteFeatures,
-    chooseRoute
+    chooseRoute,
+    calculateRoutes
   } = useRouteCalculation(origin, destination, routeExcludes);
-
-  // Get route features state and functions
-  const {
-    isFeatureDetectionInProgress,
-    detectRouteFeatures
-  } = useRouteFeatures(
-    origin,
-    destination,
-    selectedRoute ? [selectedRoute, ...alternateRoutes] : [],
-    setRouteFeatures
-  );
 
   // Setup rerouting with callbacks
   const handleRerouteSuccess = useCallback((newRoute: Route) => {
     setSelectedRoute(newRoute);
     setAlternateRoutes([]);
-
-    // Detect features for the new route
-    if (origin && destination) {
-      detectRouteFeatures(origin, destination, [newRoute]);
-    }
-  }, [origin, destination, setSelectedRoute, setAlternateRoutes, detectRouteFeatures]);
+  }, [setSelectedRoute, setAlternateRoutes]);
 
   // Get rerouting state and functions
   const {
@@ -87,9 +71,9 @@ export default function useRoute(
   });
 
   // Get specific route features
-  const getRouteFeatures = (routeId: string): RouteFeatures | undefined => {
+  const getRouteFeatures = useCallback((routeId: string): RouteFeatures | undefined => {
     return routeFeatures[routeId];
-  };
+  }, [routeFeatures]);
 
   return {
     // Route state
@@ -115,7 +99,6 @@ export default function useRoute(
     // Route features
     routeFeatures,
     getRouteFeatures,
-    isFeatureDetectionInProgress,
 
     // Rerouting state
     isRerouting,
@@ -124,5 +107,6 @@ export default function useRoute(
     startNavigation,
     stopNavigation,
     chooseRoute,
+    calculateRoutes  // Export the function to manually calculate routes
   };
 }

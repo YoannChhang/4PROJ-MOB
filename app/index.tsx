@@ -181,6 +181,8 @@ const Map = () => {
     null
   );
 
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
+
   // Routing preferences state
   const [preferences, setPreferences] = useState<RoutingPreference[]>([
     {
@@ -199,10 +201,6 @@ const Map = () => {
       enabled: userData?.preferences?.avoid_unpaved || false,
     },
   ]);
-
-  const [globalTrafficLevel, setGlobalTrafficLevel] = useState<
-    "low" | "moderate" | "heavy" | "severe" | "unknown"
-  >("unknown");
 
   // Update preferences when user data changes
   useEffect(() => {
@@ -316,16 +314,14 @@ const Map = () => {
     chooseRoute,
     setRouteExcludes,
     routeFeatures,
-    isFeatureDetectionInProgress,
+    calculateRoutes,
   } = useRoute(userLocation, state.destination);
 
-  useEffect(() => {
+  const globalTrafficLevel = useMemo(() => {
     if (selectedRoute && routeFeatures["primary"]) {
-      const primaryFeatures = routeFeatures["primary"];
-      setGlobalTrafficLevel(primaryFeatures.trafficLevel);
-    } else {
-      setGlobalTrafficLevel("unknown");
+      return routeFeatures["primary"].trafficLevel;
     }
+    return "unknown";
   }, [selectedRoute, routeFeatures]);
 
   // Handle route recalculation
@@ -534,12 +530,22 @@ const Map = () => {
 
   // Handle route selection
   const handleRouteSelected = useCallback(
-    (selectedRoute: Route, alternateRoutes: Route[]) => {
-      setSelectedRoute(selectedRoute);
-      setAlternateRoutes(alternateRoutes);
-    },
-    [setSelectedRoute, setAlternateRoutes]
-  );
+  (route: Route, alternateRoutes: Route[]) => {
+    setSelectedRoute(route);
+    setAlternateRoutes(alternateRoutes);
+    // If the selected route changed, update the selectedRouteIndex
+    if (route !== selectedRoute) {
+      // Find the new index (if it's the primary route or one of the alternates)
+      if (alternateRoutes.includes(selectedRoute as Route)) {
+        const idx = alternateRoutes.indexOf(selectedRoute as Route) + 1;
+        setSelectedRouteIndex(idx);
+      } else {
+        setSelectedRouteIndex(0); // Primary route
+      }
+    }
+  },
+  [selectedRoute, setSelectedRoute, setAlternateRoutes]
+);
 
   // Handle start navigation with proper initialization
   const handleStartNavigation = useCallback(() => {
@@ -756,7 +762,7 @@ const Map = () => {
         style={{
           position: "absolute",
           top: 50,
-          right: 120, // Position next to other buttons
+          right: 120,
           zIndex: 10,
         }}
       />
@@ -768,10 +774,14 @@ const Map = () => {
         onStartNavigation={handleStartNavigation}
         onCancelSearch={handleCancelSearch}
         onRouteSelected={handleRouteSelected}
+        calculateRoutes={calculateRoutes}
         loading={routeLoading}
         visible={isSearchVisible}
-        routeFeatures={routeFeatures} // Keep this prop
-        isFeatureDetectionInProgress={isFeatureDetectionInProgress()}
+        routeFeatures={routeFeatures}
+        selectedRoute={selectedRoute}
+        alternateRoutes={alternateRoutes}
+        selectedRouteIndex={selectedRouteIndex}
+        setSelectedRouteIndex={setSelectedRouteIndex}
       />
 
       {/* Navigation Interface */}
@@ -782,7 +792,7 @@ const Map = () => {
           distanceToNext={distanceToNextManeuver}
           onCancelNavigation={handleCancelNavigation}
           onRecalculateRoute={handleRecalculateRoute}
-          routeFeatures={routeFeatures["primary"]} // Add route features
+          routeFeatures={routeFeatures["primary"]}
         />
       )}
 
