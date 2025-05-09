@@ -6,175 +6,207 @@ import { useRouteRerouting } from "./useRouteRerouting";
 import { Route } from "@/types/mapbox";
 import { Coordinate, RouteFeatures } from "./utils/types";
 import { fetchRoute } from "./utils/mapboxApi";
-import ttsManager from "@/utils/ttsManager"; // Import ttsManager for speaking
+import ttsManager from "@/utils/ttsManager";
 
-const ROUTE_API_REFRESH_INTERVAL = 60 * 1000; // 1 minute
+const ROUTE_API_REFRESH_INTERVAL = 60 * 1000;
+
+// Helper to compare arrays for useEffect dependency
+const TUPLE_SEPARATOR = "||";
+const arrayToStableString = (arr: string[] | undefined): string => {
+  if (!arr) return "";
+  return [...arr].sort().join(TUPLE_SEPARATOR); // Sort for order-insensitivity
+};
 
 export default function useRoute(
   initialOrigin: Coordinate | null,
   destination: Coordinate | null
 ) {
+  // routeExcludes: State for what to exclude (e.g., ['toll', 'motorway'])
   const [routeExcludes, setRouteExcludes] = useState<string[] | undefined>(undefined);
+  const stableRouteExcludesString = useMemo(() => arrayToStableString(routeExcludes), [routeExcludes]);
+
 
   const {
     selectedRoute,
     setSelectedRoute,
     alternateRoutes,
     setAlternateRoutes,
-    loading: calculationLoading, // Renamed to avoid conflict
-    error: calculationError,     // Renamed
+    loading: calculationLoading,
+    error: calculationError,
     routeFeatures,
-    // setRouteFeatures, // Not directly set from here
     chooseRoute,
-    calculateRoutes,
-  } = useRouteCalculation(initialOrigin, destination, routeExcludes);
+    calculateRoutes, // This is for initial/manual route planning
+  } = useRouteCalculation(initialOrigin, destination, routeExcludes); // routeExcludes is passed here
 
   const handleRerouteSuccess = useCallback((newRoute: Route) => {
+    console.log("useRoute: Reroute successful. Updating selected route.");
     setSelectedRoute(newRoute);
-    setAlternateRoutes([]); // Rerouting typically provides only one best route
-    // Optionally, announce that route has been recalculated
-    ttsManager.speak("Nouvel itinéraire calculé.");
+    setAlternateRoutes([]);
+    ttsManager.speak("Nouvel itinéraire calculé.", true);
   }, [setSelectedRoute, setAlternateRoutes]);
+
+  const handleRerouteError = useCallback((error: Error) => {
+    console.error("useRoute: Reroute failed.", error);
+    ttsManager.speak("Impossible de recalculer l'itinéraire.", true);
+  }, []);
 
   const {
     isRerouting,
-    handleReroute, // This is the function to call for rerouting
-  } = useRouteRerouting(destination, routeExcludes, {
+    handleReroute, // This is the core rerouting function from useRouteRerouting
+  } = useRouteRerouting(destination, routeExcludes, { // routeExcludes is passed here too
+    onRerouteStart: () => console.log("useRoute: Reroute process started."),
     onRerouteSuccess: handleRerouteSuccess,
-    onRerouteError: (err) => {
-      console.error("Reroute failed:", err);
-      ttsManager.speak("Impossible de recalculer l'itinéraire.");
-    },
+    onRerouteError: handleRerouteError,
   });
 
-  // This is the callback passed to useRouteNavigation
-  const handleOffRouteCallback = useCallback((userLocation: Coordinate) => {
-    if (destination) { // Ensure destination is still valid
-      handleReroute(userLocation, ttsManager.speak); // Pass speak function from ttsManager
+  // This callback is triggered by useRouteNavigation when the user is detected off-route.
+  const onOffRouteDeviation = useCallback((userLocation: Coordinate) => {
+    if (!isRerouting && destination) {
+      console.log("useRoute: User deviated off-route. Initiating handleReroute.");
+      // Pass the current ttsManager.speak instance or a stable wrapper
+      handleReroute(userLocation, (text, isChange) => ttsManager.speak(text, isChange));
+    } else {
+      console.log("useRoute: Off-route deviation - reroute skipped (already rerouting or no destination).");
     }
-  }, [destination, handleReroute]); // Removed speakInstruction from deps as it's stable from ttsManager
-
+  }, [destination, isRerouting, handleReroute]); // handleReroute from useRouteRerouting should be stable
 
   const {
     isNavigating,
-    setIsNavigating,
+    setIsNavigating, // useRouteNavigation controls this based on start/stop/arrival
     liveUserLocation,
     traveledCoords,
     displayedInstruction,
     distanceToNextManeuver,
-    startNavigation: startRouteNavigation,
-    stopNavigation: stopRouteNavigation,
+    startNavigation: startRouteNavigationInternal,
+    stopNavigation: stopRouteNavigationInternal,
     updateNavigationMetrics,
     remainingDistance,
     remainingDuration,
     estimatedArrival,
   } = useRouteNavigation(selectedRoute, {
-    onOffRoute: handleOffRouteCallback,
+    onOffRoute: onOffRouteDeviation, // This is the primary trigger for rerouting due to physical deviation
     onArrive: () => {
-        console.log("Arrival detected by useRoute hook.");
+      console.log("useRoute: Arrival detected.");
+      // setIsNavigating(false); // Already handled within useRouteNavigation
     }
   });
 
-  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const liveUserLocationRef = useRef(liveUserLocation);
-
   useEffect(() => {
     liveUserLocationRef.current = liveUserLocation;
   }, [liveUserLocation]);
 
-  useEffect(() => {
-    if (refreshTimerRef.current) {
-      clearInterval(refreshTimerRef.current);
-      refreshTimerRef.current = null;
-    }
-
-    if (isNavigating && destination) {
+  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => { // Periodic refresh for ETA/traffic
+    if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+    if (isNavigating && destination && liveUserLocationRef.current) {
       refreshTimerRef.current = setInterval(async () => {
-        if (!liveUserLocationRef.current) {
-          console.warn("Cannot refresh route data: No live user location available (from ref)");
-          return;
-        }
+        if (!liveUserLocationRef.current) return;
         try {
           const response = await fetchRoute(liveUserLocationRef.current, destination, {
-            excludes: routeExcludes,
-            alternatives: false,
+            excludes: routeExcludes, alternatives: false,
           });
-          if (response.routes.length > 0) {
-            updateNavigationMetrics(response.routes[0]);
-          }
-        } catch (error) {
-          console.warn("Failed to refresh route data:", error);
-        }
+          if (response.routes.length > 0) updateNavigationMetrics(response.routes[0]);
+        } catch (error) { console.warn("Failed to refresh route data:", error); }
       }, ROUTE_API_REFRESH_INTERVAL);
     }
-    return () => {
-      if (refreshTimerRef.current) {
-        clearInterval(refreshTimerRef.current);
-      }
-    };
-  }, [isNavigating, destination, routeExcludes, updateNavigationMetrics]);
+    return () => { if (refreshTimerRef.current) clearInterval(refreshTimerRef.current); };
+  }, [isNavigating, destination, routeExcludes, updateNavigationMetrics]); // routeExcludes is needed if refresh should use current excludes
 
-  // Recalculate routes if preferences (routeExcludes) change during navigation or planning
+
+  // This useEffect handles changes to routeExcludes (e.g., from user settings)
+  // or when the destination changes (e.g., new QR scan or search after initial).
+  // It should only run when these specific values *actually change*.
+  const prevStableRouteExcludesString = useRef(stableRouteExcludesString);
+  const prevDestination = useRef(destination);
+
   useEffect(() => {
-    if (!isNavigating && initialOrigin && destination && !calculationLoading && !isRerouting) {
-        // If not navigating, recalculate from initialOrigin if it exists, or liveUserLocation
-        const originToUse = initialOrigin || liveUserLocationRef.current;
-        if(originToUse) {
-            console.log("Route excludes changed, recalculating planned routes from:", originToUse);
-            calculateRoutes(originToUse, destination, routeExcludes);
-        }
-    } else if (isNavigating && liveUserLocationRef.current && destination && !calculationLoading && !isRerouting) {
-        // If navigating, a change in excludes should trigger a reroute with new preferences
-        console.log("Route excludes changed during navigation, triggering reroute with new preferences.");
-        handleReroute(liveUserLocationRef.current, ttsManager.speak);
+    const destinationChanged = prevDestination.current !== destination && destination !== null;
+    const excludesChanged = prevStableRouteExcludesString.current !== stableRouteExcludesString;
+
+    // Update refs for next comparison
+    prevDestination.current = destination;
+    prevStableRouteExcludesString.current = stableRouteExcludesString;
+
+    if (!destination) { // If destination becomes null (e.g., search cancelled), clear routes
+        if (selectedRoute) setSelectedRoute(null);
+        if (alternateRoutes.length > 0) setAlternateRoutes([]);
+        return;
     }
-  }, [routeExcludes]); // Removed other dependencies to focus on preference changes. Calculation/reroute will handle current state.
+
+    if (destinationChanged || excludesChanged) {
+        console.log(`useRoute: Destination or Excludes changed. DestChanged: ${destinationChanged}, ExclChanged: ${excludesChanged}`);
+        const originToUse = liveUserLocationRef.current || initialOrigin;
+
+        if (originToUse) {
+            if (isNavigating) {
+                // If navigating and preferences/destination change, trigger a reroute.
+                console.log("--> Rerouting due to preference/destination change while navigating.");
+                if (!isRerouting) { // Avoid triggering if already rerouting for other reasons
+                    handleReroute(originToUse, (text, isChange) => ttsManager.speak(text, isChange));
+                }
+            } else {
+                // If not navigating (i.e., in planning mode), recalculate all routes.
+                console.log("--> Recalculating all routes for planning due to preference/destination change.");
+                calculateRoutes(originToUse, destination, routeExcludes);
+            }
+        } else {
+            console.warn("useRoute: Cannot calculate/reroute due to changed prefs/dest - no valid origin (live or initial).");
+        }
+    }
+  }, [
+      stableRouteExcludesString, // Stable string representation of excludes
+      destination,               // The destination itself
+      // Below are functions/states that are part of the logic but shouldn't trigger the effect on their own re-creation
+      // if their underlying values haven't changed.
+      isNavigating,
+      initialOrigin, // initialOrigin is stable
+      calculateRoutes, // from useRouteCalculation (should be stable via useCallback)
+      handleReroute,   // from useRouteRerouting (should be stable via useCallback)
+      isRerouting,
+      // Dependencies for clearing routes:
+      selectedRoute, setSelectedRoute, alternateRoutes, setAlternateRoutes
+    ]);
 
 
-  const getRouteFeatures = useCallback((routeId: string): RouteFeatures | undefined => {
-    return routeFeatures[routeId];
-  }, [routeFeatures]);
-
-  // This is the primary function the UI should call to start navigation.
   const startNavigation = useCallback(async () => {
     if (!selectedRoute) {
-        console.error("Cannot start navigation: No route selected.");
-        ttsManager.speak("Veuillez d'abord sélectionner un itinéraire.");
-        return;
+      console.error("useRoute: Cannot start navigation - No route selected.");
+      ttsManager.speak("Veuillez d'abord sélectionner un itinéraire.", true);
+      return;
     }
-    await startRouteNavigation(); // Call the function from useRouteNavigation
-  }, [selectedRoute, startRouteNavigation]);
+    // setIsNavigating(true) will be called by startRouteNavigationInternal
+    await startRouteNavigationInternal();
+  }, [selectedRoute, startRouteNavigationInternal]);
 
-  // This is the primary function the UI should call to stop navigation.
   const stopNavigation = useCallback(() => {
-    stopRouteNavigation(); // Call the function from useRouteNavigation
-    // Additional cleanup if needed by useRoute itself
-    // setSelectedRoute(null); // Consider if this should happen here or be managed by UI
-    // setAlternateRoutes([]);
-  }, [stopRouteNavigation]);
+    // setIsNavigating(false) will be called by stopRouteNavigationInternal
+    stopRouteNavigationInternal();
+  }, [stopRouteNavigationInternal]);
 
-
-  // This is the function the UI should call for manual recalculation
-  const recalculateCurrentRoute = useCallback(() => {
+  // For the UI button "Recalculate" - user manually requests a new route.
+  const manualRecalculateRoute = useCallback(() => {
     if (!liveUserLocationRef.current || !destination) {
-        console.warn("Cannot recalculate: missing current location or destination.");
-        return;
+      console.warn("useRoute: Manual recalculate skipped - missing current location or destination.");
+      ttsManager.speak("Impossible de recalculer l'itinéraire maintenant.", true);
+      return;
     }
-    console.log("Manual recalculation triggered.");
-    handleReroute(liveUserLocationRef.current, ttsManager.speak);
-  }, [destination, handleReroute]);
-
+    if (isRerouting) {
+      console.log("useRoute: Manual recalculate skipped - already rerouting.");
+      return;
+    }
+    console.log("useRoute: Manual recalculation initiated.");
+    handleReroute(liveUserLocationRef.current, (text, isChange) => ttsManager.speak(text, isChange));
+  }, [destination, isRerouting, handleReroute]);
 
   return {
     selectedRoute,
-    setSelectedRoute, // For UI to choose a route from alternatives
+    setSelectedRoute,
     alternateRoutes,
-    setAlternateRoutes, // If UI directly manipulates alternatives
-    loading: calculationLoading || isRerouting, // Combined loading state
-    error: calculationError, // Only calculation error, rerouting errors are handled in its hook
-
+    setAlternateRoutes,
+    loading: calculationLoading || isRerouting,
+    error: calculationError,
     isNavigating,
-    // setIsNavigating, // UI should use startNavigation/stopNavigation
     liveUserLocation,
     traveledCoords,
     displayedInstruction,
@@ -182,19 +214,14 @@ export default function useRoute(
     remainingDistance,
     remainingDuration,
     estimatedArrival,
-
     routeExcludes,
-    setRouteExcludes,
-
+    setRouteExcludes, // Allow UI (e.g., settings) to change preferences
     routeFeatures,
-    getRouteFeatures,
-
-    isRerouting, // Expose if UI needs to know specifically about rerouting phase
-
-    startNavigation, // Expose the main start function
-    stopNavigation,  // Expose the main stop function
-    chooseRoute,     // For selecting among primary/alternates before navigation
-    calculateRoutes, // For initial route planning by UI
-    recalculateRoute: recalculateCurrentRoute, // For manual UI-triggered recalculation
+    isRerouting,
+    startNavigation,
+    stopNavigation,
+    chooseRoute,
+    calculateRoutes, // For initial planning (e.g., after search selection)
+    recalculateRoute: manualRecalculateRoute, // For the UI's "Recalculate" button
   };
 }
