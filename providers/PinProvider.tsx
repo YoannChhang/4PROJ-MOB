@@ -2,7 +2,6 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { fetchNearbyPins, createPin, deletePin } from '@/services/useService';
 import { PinRead, PinType } from '@/types/api';
-import { Alert } from 'react-native';
 
 interface PinContextType {
   pins: PinRead[];
@@ -11,7 +10,7 @@ interface PinContextType {
   selectedPin: PinRead | null;
   radiusKm: number;
   fetchPins: (longitude: number, latitude: number) => Promise<void>;
-  reportPin: (type: PinType, longitude: number, latitude: number, description?: string) => Promise<boolean>;
+  reportPin: (type: PinType, longitude: number, latitude: number, description?: string) => Promise<void>;
   removePin: (pinId: string) => Promise<void>;
   setSelectedPin: (pin: PinRead | null) => void;
   setRadiusKm: (radius: number) => void;
@@ -39,8 +38,11 @@ export const PinProvider: React.FC<PinProviderProps> = ({
     setError(null);
     
     try {
+      console.log('Fetching pins at:', { longitude, latitude, radiusKm });
       const response = await fetchNearbyPins(longitude, latitude, radiusKm);
       if (response.data) {
+        // Log the number of pins fetched for debugging
+        console.log(`Fetched ${response.data.length} pins from API`);
         setPins(response.data);
       }
     } catch (err) {
@@ -56,8 +58,6 @@ export const PinProvider: React.FC<PinProviderProps> = ({
     setError(null);
     
     try {
-      console.log('Reporting pin:', { type, longitude, latitude, description });
-      
       const response = await createPin({
         type,
         longitude,
@@ -66,26 +66,11 @@ export const PinProvider: React.FC<PinProviderProps> = ({
       });
       
       if (response.data) {
-        console.log('Pin created successfully:', response.data);
         setPins(prev => [...prev, response.data]);
-        return true;
-      } else {
-        console.error('Pin creation returned no data');
-        setError('Failed to create pin - no data returned');
-        return false;
       }
     } catch (err) {
-      console.error('Error creating pin:', err);
       setError('Failed to create pin');
-      
-      // Show error alert
-      Alert.alert(
-        'Alert Creation Failed',
-        'Unable to report the alert. Please try again.',
-        [{ text: 'OK' }]
-      );
-      
-      return false;
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -103,7 +88,7 @@ export const PinProvider: React.FC<PinProviderProps> = ({
       }
     } catch (err) {
       setError('Failed to delete pin');
-      console.error('Error deleting pin:', err);
+      console.error(err);
     } finally {
       setLoading(false);
     }

@@ -267,11 +267,16 @@ const Map = () => {
         : "unknown",
     [selectedRoute, routeFeatures]
   );
-  const { pins: alertPinsFromHook } = useAlertPins(
-    userLocation
-      ? { latitude: userLocation[1], longitude: userLocation[0] }
-      : null
+
+  const alertPinsLocation = useMemo(
+    () =>
+      userLocation
+        ? { latitude: userLocation[1], longitude: userLocation[0] }
+        : null,
+    [userLocation, isSignedIn]
   );
+
+  const { pins: alertPinsFromHook } = useAlertPins(alertPinsLocation);
 
   useEffect(() => {
     if (qrData && !qrDataProcessed.current && userLocation) {
@@ -634,8 +639,8 @@ const Map = () => {
             key={`pin-${pin.id}`}
             id={`pin-${pin.id}`}
             coordinate={[pin.longitude, pin.latitude]}
-            onSelected={() => handleSelectPin(pin)} // onSelected is Mapbox's prop for tap
-            onDeselected={() => dispatch({ type: "SELECT_PIN", payload: null })} // Optional: handle deselection too
+            onSelected={() => handleSelectPin(pin)}
+            onDeselected={() => dispatch({ type: "SELECT_PIN", payload: null })}
           >
             <SimplifiedAlertPin type={pin.type} />
           </PointAnnotation>
