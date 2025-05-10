@@ -59,15 +59,15 @@ export const setAuthToken = (token: string | undefined) => {
 
 // AUTHENTICATION ENDPOINTS
 
-// Google authentication (already implemented but updated)
-export const googleAndroid = (token: string): Promise<ApiResponse<any>> =>
-  api.post(`/auth/google/android?token_id=${token}`);
+// Google authentication
+export const googleAndroid = (token_id: string): Promise<ApiResponse<any>> =>
+  api.post(`/auth/google/android?token_id=${token_id}`);
 
-export const googleIOS = (token: string): Promise<ApiResponse<any>> =>
-  api.post(`/auth/google/ios?token_id=${token}`);
+export const googleIOS = (token_id: string): Promise<ApiResponse<any>> =>
+  api.post(`/auth/google/ios?token_id=${token_id}`);
 
-export const googleWeb = (token: string): Promise<ApiResponse<any>> =>
-  api.post(`/auth/google/web?token_id=${token}`);
+export const googleWeb = (token_id: string): Promise<ApiResponse<any>> =>
+  api.post(`/auth/google/web?token_id=${token_id}`);
 
 // Login with email and password
 export const loginWithEmail = (
@@ -89,7 +89,7 @@ export const getCurrentUser = (): Promise<ApiResponse<User>> =>
 
 // Get user by ID
 export const getUserById = (userId: string): Promise<ApiResponse<User>> =>
-  api.post("/user/by_id", { user_id: userId });
+  api.post(`/user/by_id?user_id=${userId}`);
 
 // Update user data
 export const updateUser = (
@@ -98,14 +98,13 @@ export const updateUser = (
 
 // Delete user
 export const deleteUser = (userId: string): Promise<ApiResponse<any>> =>
-  api.post("/user/delete", { user_id: userId });
+  api.delete("/user/delete", { data: { user_id: userId } });
 
 // Get paginated list of users
 export const getUsersList = (
   page: number = 1,
-  size: number = 10
-): Promise<ApiResponse<User[]>> =>
-  api.get(`/user/page?page=${page}&size=${size}`);
+  size: number = 50
+): Promise<ApiResponse<any>> => api.get(`/user/page?page=${page}&size=${size}`);
 
 // ROLE MANAGEMENT ENDPOINTS
 
@@ -115,13 +114,6 @@ export const assignRole = (
   role: RoleEnum
 ): Promise<ApiResponse<any>> =>
   api.post("/user/assign_role", { user_id: userId, role });
-
-// USER PREFERENCES
-
-// Update user preferences
-export const updateUserPreferences = (
-  preferences: UserPreferences
-): Promise<ApiResponse<User>> => api.post("/user/update", { preferences });
 
 // PIN MANAGEMENT ENDPOINTS
 export interface PinCreate {
@@ -144,7 +136,6 @@ export const fetchNearbyPins = async (
   latitude: number,
   radiusKm: number = 10
 ): Promise<ApiResponse<PinRead[]>> => {
-
   return api.post("/pins/nearby", {
     longitude,
     latitude,
@@ -158,5 +149,21 @@ export const createPin = async (
 ): Promise<ApiResponse<PinRead>> => api.post("/pins/", pinData);
 
 // Delete a pin
-export const deletePin = async (pinId: number): Promise<ApiResponse<PinRead>> =>
-  api.delete(`/pins/${pinId}`);
+export const deletePin = async (pinId: string): Promise<ApiResponse<PinRead>> =>
+  api.delete("/pins/delete", { data: { pin_id: pinId } });
+
+// STATS ENDPOINTS
+
+// Add itinerary statistics
+export interface ItineraryStatCreate {
+  estimated_distance: number;
+  estimated_time: number;
+}
+
+export const addItineraryStat = async (
+  data: ItineraryStatCreate
+): Promise<ApiResponse<any>> => api.post("/stats/itinerary", data);
+
+// Get user or admin statistics
+export const getStats = async (): Promise<ApiResponse<any>> =>
+  api.get("/stats/");

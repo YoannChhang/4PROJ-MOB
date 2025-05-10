@@ -5,6 +5,7 @@ import React, {
   useEffect,
   ReactNode,
   useMemo,
+  useCallback,
 } from "react";
 import {
   GoogleSignin,
@@ -18,8 +19,9 @@ import {
   registerUser,
   setAuthToken,
   getCurrentUser,
+  updateUser,
 } from "@/services/useService";
-import { ApiResponse, User } from "@/types/api";
+import { ApiResponse, User, UserPreferences } from "@/types/api";
 import { Platform } from "react-native";
 import { useRouter } from "expo-router";
 
@@ -44,6 +46,7 @@ interface UserContextType {
     password?: string
   ) => Promise<void>;
   signOut: () => Promise<void>;
+  updatePreferences: (preferences: UserPreferences) => Promise<void>;
 }
 
 // Create the context with a default value
@@ -52,7 +55,6 @@ const UserContext = createContext<UserContextType>({
     preferences: {
       avoid_tolls: false,
       avoid_highways: false,
-      // avoid_ferries: false,
       avoid_unpaved: false,
     },
   } as User,
@@ -63,6 +65,7 @@ const UserContext = createContext<UserContextType>({
   register: async () => {},
   signIn: async () => {},
   signOut: async () => {},
+  updatePreferences: async () => {},
 });
 
 // Create a hook to use the user context
@@ -77,7 +80,6 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     preferences: {
       avoid_tolls: false,
       avoid_highways: false,
-      // avoid_ferries: false,
       avoid_unpaved: false,
     },
   } as User);
@@ -181,10 +183,10 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     // Extract token from response
     const token = res.data?.access_token || "";
     console.log("Sign in successful, setting bearer token");
-    
+
     // Set the token for all future API requests
     setAuthToken(token);
-    
+
     // Update the state - this will trigger the isSignedIn effect in useAlertPins
     setBearerToken(token);
 
@@ -274,20 +276,19 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       setIsLoading(true);
       console.log("Signing out, clearing auth token");
       await GoogleSignin.signOut();
-      
+
       // Update user data and clear token - this will trigger the isSignedIn effect in useAlertPins
       setUserData({
         preferences: {
           avoid_tolls: false,
           avoid_highways: false,
-          // avoid_ferries: false,
           avoid_unpaved: false,
         },
       } as User);
-      
+
       // Clear the auth token from API headers
       setAuthToken(undefined);
-      
+
       // Update state after token is cleared from API headers
       setBearerToken(undefined);
     } catch (error) {
@@ -296,6 +297,34 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       setIsLoading(false);
     }
   };
+
+  // Add new function to update user preferences
+  const updatePreferences = useCallback(
+    async (preferences: UserPreferences) => {
+      if (!isSignedIn) return;
+
+      try {
+        setIsLoading(true);
+        console.log("Updating user preferences:", preferences);
+
+        const response = await updateUser({ preferences });
+
+        if (response.data) {
+          // Update the local user data state with the updated preferences
+          setUserData((prevData) => ({
+            ...prevData,
+            preferences: response.data.preferences || preferences,
+          }));
+          console.log("User preferences updated successfully");
+        }
+      } catch (error) {
+        console.error("Error updating user preferences:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [isSignedIn]
+  );
 
   const value = {
     userData,
@@ -306,6 +335,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     register,
     signIn,
     signOut,
+    updatePreferences,
   };
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

@@ -11,7 +11,7 @@ interface PinContextType {
   radiusKm: number;
   fetchPins: (longitude: number, latitude: number) => Promise<void>;
   reportPin: (type: PinType, longitude: number, latitude: number, description?: string) => Promise<void>;
-  removePin: (pinId: number) => Promise<void>;
+  removePin: (pinId: string) => Promise<void>;
   setSelectedPin: (pin: PinRead | null) => void;
   setRadiusKm: (radius: number) => void;
 }
@@ -38,8 +38,11 @@ export const PinProvider: React.FC<PinProviderProps> = ({
     setError(null);
     
     try {
+      console.log('Fetching pins at:', { longitude, latitude, radiusKm });
       const response = await fetchNearbyPins(longitude, latitude, radiusKm);
       if (response.data) {
+        // Log the number of pins fetched for debugging
+        console.log(`Fetched ${response.data.length} pins from API`);
         setPins(response.data);
       }
     } catch (err) {
@@ -73,7 +76,7 @@ export const PinProvider: React.FC<PinProviderProps> = ({
     }
   };
 
-  const removePin = async (pinId: number) => {
+  const removePin = async (pinId: string) => {
     setLoading(true);
     setError(null);
     

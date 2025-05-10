@@ -4,15 +4,8 @@
 export enum RoleEnum {
   ADMIN = 'admin',
   USER = 'user',
+  MODERATOR = 'moderator',
 }
-
-// Travel method preferences
-// export enum PreferredTravelMethodEnum {
-//   DRIVING = 'driving',
-//   WALKING = 'walking',
-//   CYCLING = 'cycling',
-//   PUBLIC_TRANSPORT = 'public_transport',
-// }
 
 // Language preferences
 export enum PreferredLanguageEnum {
@@ -23,10 +16,8 @@ export enum PreferredLanguageEnum {
 // User preferences
 export interface UserPreferences {
   preferred_language?: PreferredLanguageEnum;
-  // preferred_travel_method?: PreferredTravelMethodEnum;
   avoid_tolls?: boolean;
   avoid_highways?: boolean;
-  // avoid_ferries?: boolean;
   avoid_unpaved?: boolean;
 }
 
@@ -36,6 +27,7 @@ export interface User {
   name?: string;
   email: string;
   role?: RoleEnum;
+  created_at?: string;
   preferences: UserPreferences;
   photo?: string | null;
 }
@@ -51,18 +43,28 @@ export interface RegisterInput extends LoginInput {
   name: string;
 }
 
+// Login response
+export interface LoginResponse {
+  access_token: string;
+}
+
+// Register response
+export interface RegisterResponse {
+  ok: boolean;
+}
+
 // API response format
 export interface ApiResponse<T> {
   data: T;
   error?: string;
-  message: string;
-  status: string;
+  message?: string;
+  status?: string;
 }
 
 export type PinType = 'obstacle' | 'traffic_jam' | 'cop' | 'accident' | 'roadwork';
 
 export interface PinRead {
-  id: number;
+  id: string;
   longitude: number;
   latitude: number;
   type: PinType;
@@ -72,4 +74,24 @@ export interface PinRead {
   user: User;
   deleted_at?: string | null;
   deleted_by_id?: string | null;
+}
+
+// Stats types
+export interface UserStats {
+  total_pins_reported: number;
+  total_itineraries: number;
+  average_distance: number | null;
+  average_time: number | null;
+  total_distance: number;
+}
+
+export interface AdminStats extends UserStats {
+  total_users: number;
+  active_users: number;
+  total_pins: number;
+  pins_today: number;
+  total_itineraries: number;
+  itineraries_today: number;
+  distance_today: number;
+  pins_by_category: Record<string, number>;
 }
