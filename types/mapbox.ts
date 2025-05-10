@@ -61,6 +61,12 @@ export interface Step {
   distance: number;
   voiceInstructions?: VoiceInstruction[];
   bannerInstructions?: BannerInstruction[];
+  annotation?: {
+    congestion?: string[];
+    speed?: number[];
+    duration?: number[];
+    distance?: number[];
+  };
 }
 
 export interface Intersection {
@@ -98,4 +104,18 @@ export interface BannerText {
   components: { text: string }[];
   type: string;
   modifier?: "left" | "right" | "straight" | "uturn";
+}
+
+// New interfaces for route features
+export interface RouteFeatures {
+  hasHighways: boolean;
+  hasTolls: boolean;
+  hasUnpavedRoads: boolean;
+  estimatedTime: string; // formatted time
+  distance: string; // formatted distance
+  trafficLevel: "low" | "moderate" | "heavy" | "severe" | "unknown";
+}
+
+export interface CongestionAnnotation {
+  congestion: string[]; // Values like "low", "moderate", "heavy", "severe"
 }

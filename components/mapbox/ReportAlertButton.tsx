@@ -2,13 +2,13 @@
 import React, { useState } from 'react';
 import { 
   StyleSheet, 
-  TouchableOpacity, 
   View, 
   Text, 
   Modal,
   TextInput,
   FlatList,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback,
+  TouchableOpacity
 } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { usePins } from '@/providers/PinProvider';
@@ -24,12 +24,36 @@ const ALERT_TYPES: { type: PinType; label: string; icon: string; color: string }
 
 interface ReportAlertButtonProps {
   userLocation: { longitude: number; latitude: number } | null;
+  // New props for external modal control
+  isVisible?: boolean;
+  onClose?: () => void;
 }
 
-const ReportAlertButton: React.FC<ReportAlertButtonProps> = ({ userLocation }) => {
-  const [modalVisible, setModalVisible] = useState(false);
+const ReportAlertButton: React.FC<ReportAlertButtonProps> = ({ 
+  userLocation,
+  isVisible,
+  onClose
+}) => {
+  // Use the external visibility state if provided, otherwise manage internally
+  const [internalModalVisible, setInternalModalVisible] = useState(false);
   const [description, setDescription] = useState('');
   const { reportPin } = usePins();
+  
+  // Determine if modal should be shown based on props or internal state
+  const modalVisible = isVisible !== undefined ? isVisible : internalModalVisible;
+  
+  // Handle closing the modal
+  const handleCloseModal = () => {
+    if (onClose) {
+      // If external control is provided, use it
+      onClose();
+    } else {
+      // Otherwise use internal state
+      setInternalModalVisible(false);
+    }
+    // Always reset description when closing
+    setDescription('');
+  };
   
   const handleReport = async (type: PinType) => {
     if (!userLocation) {
@@ -44,31 +68,25 @@ const ReportAlertButton: React.FC<ReportAlertButtonProps> = ({ userLocation }) =
       description.trim() || undefined
     );
     setDescription('');
-    setModalVisible(false);
+    handleCloseModal();
   };
   
   return (
     <>
-      <TouchableOpacity 
-        style={styles.button}
-        onPress={() => setModalVisible(true)}
-      >
-        <FontAwesome5 name="exclamation-triangle" size={20} color="white" />
-      </TouchableOpacity>
-      
+      {/* Modal for selecting alert type */}
       <Modal
         animationType="slide"
         transparent={true}
         visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={handleCloseModal}
       >
-        <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
+        <TouchableWithoutFeedback onPress={handleCloseModal}>
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback onPress={() => {}}>
               <View style={styles.modalContent}>
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Report Alert</Text>
-                  <TouchableOpacity onPress={() => setModalVisible(false)}>
+                  <TouchableOpacity onPress={handleCloseModal}>
                     <FontAwesome5 name="times" size={20} color="#555" />
                   </TouchableOpacity>
                 </View>
@@ -118,23 +136,6 @@ const ReportAlertButton: React.FC<ReportAlertButtonProps> = ({ userLocation }) =
 };
 
 const styles = StyleSheet.create({
-  button: {
-    position: 'absolute',
-    bottom: 80,
-    right: 24,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FF6B6B',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    zIndex: 10,
-  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
