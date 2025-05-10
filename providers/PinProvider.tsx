@@ -2,6 +2,7 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { fetchNearbyPins, createPin, deletePin } from '@/services/useService';
 import { PinRead, PinType } from '@/types/api';
+import { Alert } from 'react-native';
 
 interface PinContextType {
   pins: PinRead[];
@@ -10,8 +11,8 @@ interface PinContextType {
   selectedPin: PinRead | null;
   radiusKm: number;
   fetchPins: (longitude: number, latitude: number) => Promise<void>;
-  reportPin: (type: PinType, longitude: number, latitude: number, description?: string) => Promise<void>;
-  removePin: (pinId: number) => Promise<void>;
+  reportPin: (type: PinType, longitude: number, latitude: number, description?: string) => Promise<boolean>;
+  removePin: (pinId: string) => Promise<void>;
   setSelectedPin: (pin: PinRead | null) => void;
   setRadiusKm: (radius: number) => void;
 }
@@ -55,6 +56,8 @@ export const PinProvider: React.FC<PinProviderProps> = ({
     setError(null);
     
     try {
+      console.log('Reporting pin:', { type, longitude, latitude, description });
+      
       const response = await createPin({
         type,
         longitude,
@@ -63,17 +66,32 @@ export const PinProvider: React.FC<PinProviderProps> = ({
       });
       
       if (response.data) {
+        console.log('Pin created successfully:', response.data);
         setPins(prev => [...prev, response.data]);
+        return true;
+      } else {
+        console.error('Pin creation returned no data');
+        setError('Failed to create pin - no data returned');
+        return false;
       }
     } catch (err) {
+      console.error('Error creating pin:', err);
       setError('Failed to create pin');
-      console.error(err);
+      
+      // Show error alert
+      Alert.alert(
+        'Alert Creation Failed',
+        'Unable to report the alert. Please try again.',
+        [{ text: 'OK' }]
+      );
+      
+      return false;
     } finally {
       setLoading(false);
     }
   };
 
-  const removePin = async (pinId: number) => {
+  const removePin = async (pinId: string) => {
     setLoading(true);
     setError(null);
     
@@ -85,7 +103,7 @@ export const PinProvider: React.FC<PinProviderProps> = ({
       }
     } catch (err) {
       setError('Failed to delete pin');
-      console.error(err);
+      console.error('Error deleting pin:', err);
     } finally {
       setLoading(false);
     }

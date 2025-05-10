@@ -1,4 +1,4 @@
-// components/mapbox/ReportAlertButton.tsx
+// components/mapbox/ReportAlertModal.tsx
 import React, { useState } from "react";
 import {
   StyleSheet,
@@ -9,6 +9,8 @@ import {
   FlatList,
   TouchableWithoutFeedback,
   TouchableOpacity,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { usePins } from "@/providers/PinProvider";
@@ -47,6 +49,7 @@ const ReportAlertModal: React.FC<ReportAlertModalProps> = ({
   // Use the external visibility state if provided, otherwise manage internally
   const [internalModalVisible, setInternalModalVisible] = useState(false);
   const [description, setDescription] = useState("");
+  const [isReporting, setIsReporting] = useState(false);
   const { reportPin } = usePins();
 
   // Determine if modal should be shown based on props or internal state
@@ -55,6 +58,9 @@ const ReportAlertModal: React.FC<ReportAlertModalProps> = ({
 
   // Handle closing the modal
   const handleCloseModal = () => {
+    // Don't allow closing while submitting
+    if (isReporting) return;
+    
     if (onClose) {
       // If external control is provided, use it
       onClose();
@@ -68,18 +74,47 @@ const ReportAlertModal: React.FC<ReportAlertModalProps> = ({
 
   const handleReport = async (type: PinType) => {
     if (!userLocation) {
-      // Show an error or request location permission
+      Alert.alert(
+        "Location Unavailable",
+        "We need your location to report an alert. Please enable location services.",
+        [{ text: "OK" }]
+      );
       return;
     }
 
-    await reportPin(
-      type,
-      userLocation.longitude,
-      userLocation.latitude,
-      description.trim() || undefined
-    );
-    setDescription("");
-    handleCloseModal();
+    setIsReporting(true);
+    
+    try {
+      console.log(`Reporting ${type} at ${userLocation.longitude}, ${userLocation.latitude}`);
+      
+      const success = await reportPin(
+        type,
+        userLocation.longitude,
+        userLocation.latitude,
+        description.trim() || undefined
+      );
+      
+      if (success) {
+        // Show success message
+        Alert.alert(
+          "Alert Reported",
+          "Thank you for contributing to the community!",
+          [{ text: "OK" }]
+        );
+        
+        setDescription("");
+        handleCloseModal();
+      }
+    } catch (error) {
+      console.error("Error reporting pin:", error);
+      Alert.alert(
+        "Report Failed",
+        "Unable to report the alert. Please try again.",
+        [{ text: "OK" }]
+      );
+    } finally {
+      setIsReporting(false);
+    }
   };
 
   return (
@@ -97,56 +132,68 @@ const ReportAlertModal: React.FC<ReportAlertModalProps> = ({
               <View style={styles.modalContent}>
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Report Alert</Text>
-                  <TouchableOpacity onPress={handleCloseModal}>
+                  <TouchableOpacity 
+                    onPress={handleCloseModal}
+                    disabled={isReporting}
+                  >
                     <FontAwesome5 name="times" size={20} color="#555" />
                   </TouchableOpacity>
                 </View>
 
                 <Text style={styles.sectionTitle}>Select Alert Type</Text>
 
-                <FlatList
-                  data={ALERT_TYPES}
-                  horizontal={false}
-                  numColumns={3}
-                  keyExtractor={(item) => item.type}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.alertTypeItem}
-                      onPress={() => handleReport(item.type)}
-                    >
-                      <View
-                        style={[
-                          styles.iconContainer,
-                          { backgroundColor: item.color },
-                        ]}
-                      >
-                        <FontAwesome5
-                          name={item.icon}
-                          size={24}
-                          color="white"
-                        />
-                      </View>
-                      <Text style={styles.alertTypeLabel}>{item.label}</Text>
-                    </TouchableOpacity>
-                  )}
-                  contentContainerStyle={styles.alertTypesList}
-                />
+                {isReporting ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#4285F4" />
+                    <Text style={styles.loadingText}>Submitting report...</Text>
+                  </View>
+                ) : (
+                  <>
+                    <FlatList
+                      data={ALERT_TYPES}
+                      horizontal={false}
+                      numColumns={3}
+                      keyExtractor={(item) => item.type}
+                      renderItem={({ item }) => (
+                        <TouchableOpacity
+                          style={styles.alertTypeItem}
+                          onPress={() => handleReport(item.type)}
+                        >
+                          <View
+                            style={[
+                              styles.iconContainer,
+                              { backgroundColor: item.color },
+                            ]}
+                          >
+                            <FontAwesome5
+                              name={item.icon}
+                              size={24}
+                              color="white"
+                            />
+                          </View>
+                          <Text style={styles.alertTypeLabel}>{item.label}</Text>
+                        </TouchableOpacity>
+                      )}
+                      contentContainerStyle={styles.alertTypesList}
+                    />
 
-                <Text style={styles.sectionTitle}>Description (Optional)</Text>
+                    <Text style={styles.sectionTitle}>Description (Optional)</Text>
 
-                <TextInput
-                  style={styles.input}
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder="Add details about this alert..."
-                  multiline
-                  numberOfLines={3}
-                />
+                    <TextInput
+                      style={styles.input}
+                      value={description}
+                      onChangeText={setDescription}
+                      placeholder="Add details about this alert..."
+                      multiline
+                      numberOfLines={3}
+                    />
 
-                <Text style={styles.note}>
-                  Reports are sent anonymously and will show at your current
-                  location
-                </Text>
+                    <Text style={styles.note}>
+                      Reports are sent anonymously and will show at your current
+                      location
+                    </Text>
+                  </>
+                )}
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -219,6 +266,16 @@ const styles = StyleSheet.create({
     color: "#666",
     textAlign: "center",
     marginTop: 12,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#555',
   },
 });
 

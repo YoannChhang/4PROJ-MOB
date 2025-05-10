@@ -268,8 +268,8 @@ const Map = () => {
     [selectedRoute, routeFeatures]
   );
   const { pins: alertPinsFromHook } = useAlertPins(
-    liveUserLocation
-      ? { latitude: liveUserLocation[1], longitude: liveUserLocation[0] }
+    userLocation
+      ? { latitude: userLocation[1], longitude: userLocation[0] }
       : null
   );
 
@@ -726,10 +726,10 @@ const Map = () => {
       {reportModalVisible && ( // Render conditionally to ensure it's not always in the tree
         <ReportAlertModal
           userLocation={
-            liveUserLocation
+            userLocation
               ? {
-                  latitude: liveUserLocation[1],
-                  longitude: liveUserLocation[0],
+                  latitude: userLocation[1],
+                  longitude: userLocation[0],
                 }
               : null
           }
