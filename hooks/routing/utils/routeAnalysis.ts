@@ -94,11 +94,12 @@ export const calculatePathSimilarity = (
     const areaA = (boundsA[2] - boundsA[0]) * (boundsA[3] - boundsA[1]);
     const areaB = (boundsB[2] - boundsB[0]) * (boundsB[3] - boundsB[1]);
     const maxArea = Math.max(areaA, areaB);
-    const overlapRatio = maxArea > 0 ? overlapArea / maxArea : 0; // Avoid division by zero
+    const overlapRatio = maxArea > 0 ? overlapArea / maxArea : 0;
     const lengthA = turf.length(lineA);
     const lengthB = turf.length(lineB);
     const maxLength = Math.max(lengthA, lengthB);
-    const lengthRatio = maxLength > 0 ? Math.min(lengthA, lengthB) / maxLength : 0; // Avoid division by zero
+    const lengthRatio =
+      maxLength > 0 ? Math.min(lengthA, lengthB) / maxLength : 0;
     return overlapRatio * 0.7 + lengthRatio * 0.3;
   } catch (error) {
     console.error("Error calculating path similarity:", error);
@@ -131,26 +132,27 @@ export const calculateBoundsOverlap = (
  * Find the nearest point on a route to the user's current location
  * @param route Route to check against
  * @param userLocation User's current location
- * @returns Object with distance (from route), index (of segment), and location (distance along route)
+ * @returns Object with distance (from route), index (of segment), and location (distance along route in meters)
  */
 export const findNearestPointOnRoute = (
   route: Route,
   userLocation: Coordinate
 ): {
-  distance: number; // Distance from the route line
-  index: number;    // Index of the segment on the route line that is closest
-  location: number; // Distance from the start of the route to the closest point on the route line
+  distance: number;
+  index: number;
+  location: number; // Distance along the route in meters
 } => {
   try {
     const routeLine = turf.lineString(route.geometry.coordinates);
     const userPoint = turf.point(userLocation);
     const nearestPoint = turf.nearestPointOnLine(routeLine, userPoint, {
-      units: "meters",
+      units: "meters", // Ensure this is meters
     });
+    // .location property from nearestPointOnLine with units: 'meters' IS the distance along the line in meters.
     return {
       distance: nearestPoint.properties.dist || Infinity,
       index: nearestPoint.properties.index || 0,
-      location: nearestPoint.properties.location || 0, // This is distance along the line in km, convert if needed or ensure consistency
+      location: nearestPoint.properties.location || 0,
     };
   } catch (error) {
     console.error("Error finding nearest point on route:", error);
@@ -168,9 +170,9 @@ export const calculateDistanceInMeters = (
   pointA: Coordinate,
   pointB: Coordinate
 ): number => {
-  // turf.distance with units: "meters" already returns meters.
-  // The multiplication by 1000 was incorrect.
-  return turf.distance(turf.point(pointA), turf.point(pointB), { units: "meters" });
+  return turf.distance(turf.point(pointA), turf.point(pointB), {
+    units: "meters",
+  });
 };
 
 /**
@@ -183,10 +185,86 @@ export const calculateDistanceInMeters = (
 export const hasArrivedAtDestination = (
   route: Route,
   userLocation: Coordinate,
-  threshold: number = 20 // meters
+  threshold: number = 20
 ): boolean => {
   if (!route || !route.geometry.coordinates.length) return false;
-  const destination = route.geometry.coordinates[route.geometry.coordinates.length - 1] as Coordinate;
+  const destination = route.geometry.coordinates[
+    route.geometry.coordinates.length - 1
+  ] as Coordinate;
   const distanceToDest = calculateDistanceInMeters(userLocation, destination);
   return distanceToDest < threshold;
+};
+
+/**
+ * Slices a route's geometry from its start up to a given distance along the route.
+ * @param route The Mapbox route object.
+ * @param distanceAlongRouteMeters The distance (in meters) to slice up to.
+ * @returns An array of Coordinates representing the sliced path, or an empty array if an error occurs or slice is invalid.
+ */
+export const getSlicedRouteGeometry = (
+  route: Route,
+  distanceAlongRouteMeters: number
+): Coordinate[] => {
+  if (
+    !route.geometry ||
+    !route.geometry.coordinates ||
+    route.geometry.coordinates.length < 2
+  ) {
+    console.warn("getSlicedRouteGeometry: Invalid route geometry provided.");
+    return [];
+  }
+  try {
+    const routeLineString = turf.lineString(route.geometry.coordinates);
+    const totalRouteLengthMeters = turf.length(routeLineString, {
+      units: "meters",
+    });
+
+    // Ensure distance is within bounds [0, totalRouteLengthMeters]
+    const validDistanceMeters = Math.max(
+      0,
+      Math.min(distanceAlongRouteMeters, totalRouteLengthMeters)
+    );
+
+    if (validDistanceMeters <= 0.1) {
+      // Use a small epsilon for floating point comparisons near zero
+      // If distance is effectively 0, return just the starting coordinate
+      return [route.geometry.coordinates[0] as Coordinate];
+    }
+    // No need to check for validDistanceMeters >= totalRouteLengthMeters separately,
+    // lineSliceAlong handles being at the end of the line correctly.
+
+    const slicedLine = turf.lineSliceAlong(
+      routeLineString,
+      0,
+      validDistanceMeters,
+      { units: "meters" }
+    );
+
+    // lineSliceAlong might return a feature with null geometry if parameters are invalid
+    // or if the slice results in a degenerate geometry (e.g. start and end are the same point after slicing)
+    if (
+      !slicedLine.geometry ||
+      !slicedLine.geometry.coordinates ||
+      slicedLine.geometry.coordinates.length === 0
+    ) {
+      console.warn(
+        "getSlicedRouteGeometry: lineSliceAlong resulted in invalid or empty geometry. Distance:",
+        validDistanceMeters
+      );
+      // Fallback to returning just the start point if slice is problematic
+      return [route.geometry.coordinates[0] as Coordinate];
+    }
+
+    return slicedLine.geometry.coordinates as Coordinate[];
+  } catch (error) {
+    console.error(
+      "Error slicing route geometry:",
+      error,
+      "Distance:",
+      distanceAlongRouteMeters
+    );
+    // Fallback in case of turf error
+    const firstCoord = route.geometry.coordinates[0] as Coordinate;
+    return firstCoord ? [firstCoord] : [];
+  }
 };

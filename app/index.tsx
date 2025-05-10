@@ -5,7 +5,7 @@ import React, {
   useMemo,
   useCallback,
   useRef,
-  useReducer, // Ensure useReducer is imported
+  useReducer,
 } from "react";
 import {
   StyleSheet,
@@ -39,7 +39,7 @@ import PinInfoModal from "@/components/mapbox/PinInfoModal";
 import useAlertPins from "@/hooks/useAlertPins";
 
 import FloatingActionButton from "@/components/ui/FloatingActionButton";
-import { Route } from "@/types/mapbox"; // Ensure Route is imported
+import { Route } from "@/types/mapbox";
 import { PinRead, UserPreferences } from "@/types/api";
 
 import HamburgerMenuButton from "@/components/settings/HamburgerMenuButton";
@@ -53,17 +53,15 @@ import TrafficStatusIndicator from "@/components/mapbox/TrafficStatusIndicator";
 
 Mapbox.setAccessToken(Config.MAPBOX_PK as string);
 
-// AppState definition
 type AppState = {
   uiMode: "map" | "search" | "route-selection" | "navigation";
   destination: [number, number] | null;
   isSideMenuOpen: boolean;
   selectedPin: PinRead | null;
-  isInitializing: boolean; // For app services like TTS, location
-  isInitialRouteCalculated: boolean; // For tracking if the first route plan after search/QR is complete
+  isInitializing: boolean;
+  isInitialRouteCalculated: boolean;
 };
 
-// AppAction definition
 type AppAction =
   | { type: "INITIALIZE_COMPLETE" }
   | { type: "SHOW_SEARCH" }
@@ -75,7 +73,6 @@ type AppAction =
   | { type: "SELECT_PIN"; payload: PinRead | null }
   | { type: "SET_INITIAL_ROUTE_CALCULATED"; payload: boolean };
 
-// App Reducer
 const appReducer = (state: AppState, action: AppAction): AppState => {
   switch (action.type) {
     case "INITIALIZE_COMPLETE":
@@ -97,7 +94,7 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
         isInitialRouteCalculated: false,
       };
     case "START_NAVIGATION_UI":
-      return { ...state, uiMode: "navigation" }; // isInitialRouteCalculated remains true if already set
+      return { ...state, uiMode: "navigation" };
     case "STOP_NAVIGATION_UI":
       return {
         ...state,
@@ -116,7 +113,6 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
   }
 };
 
-// Initial App State
 const initialAppState: AppState = {
   uiMode: "map",
   destination: null,
@@ -131,7 +127,6 @@ const Map = () => {
   const pathname = usePathname();
   const mapRef = useRef<MapView>(null);
   const { isSignedIn, userData } = useUser();
-
   const [state, dispatch] = useReducer(appReducer, initialAppState);
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [loginPromptVisible, setLoginPromptVisible] = useState(false);
@@ -139,7 +134,7 @@ const Map = () => {
   const qrDataProcessed = useRef(false);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(
     null
-  ); // For initial origin
+  );
   const [selectedRouteIdxState, setSelectedRouteIdxState] = useState(0);
 
   const [preferences, setPreferences] = useState<RoutingPreference[]>([
@@ -168,7 +163,7 @@ const Map = () => {
     loading: routeHookLoading,
     error: routeHookError,
     isNavigating,
-    liveUserLocation, // The continuously updating location during navigation from useRoute
+    liveUserLocation,
     traveledCoords,
     displayedInstruction,
     distanceToNextManeuver,
@@ -178,8 +173,8 @@ const Map = () => {
     setRouteExcludes,
     routeFeatures,
     calculateRoutes,
-    recalculateRoute, // This is the manualRecalculateRoute for the UI button
-    isRerouting, // Specific state for rerouting phase
+    recalculateRoute,
+    isRerouting,
   } = useRoute(userLocation, state.destination);
 
   useEffect(() => {
@@ -213,20 +208,14 @@ const Map = () => {
     const initializeAppServices = async () => {
       try {
         await ttsManager.initialize();
-        console.log("TTS initialized successfully from App Index");
         const trackingStarted = await locationTracker.startTracking();
-        if (!trackingStarted) {
-          Alert.alert(
-            "Location Required",
-            "Please enable location access in settings."
-          );
-        }
+        if (!trackingStarted)
+          Alert.alert("Location Required", "Please enable location access.");
         locationTracker.on("locationUpdate", (loc) => setUserLocation(loc));
         const initialLoc = await locationTracker.getLastKnownLocation();
         if (initialLoc) setUserLocation(initialLoc);
         dispatch({ type: "INITIALIZE_COMPLETE" });
       } catch (error) {
-        console.error("Initialization error:", error);
         dispatch({ type: "INITIALIZE_COMPLETE" });
         Alert.alert("Error", "Failed to initialize app services.");
       }
@@ -239,11 +228,10 @@ const Map = () => {
   }, []);
 
   useEffect(() => {
-    if (isNavigating && state.uiMode !== "navigation") {
+    if (isNavigating && state.uiMode !== "navigation")
       dispatch({ type: "START_NAVIGATION_UI" });
-    } else if (!isNavigating && state.uiMode === "navigation") {
+    else if (!isNavigating && state.uiMode === "navigation")
       dispatch({ type: "STOP_NAVIGATION_UI" });
-    }
   }, [isNavigating, state.uiMode]);
 
   useEffect(() => {
@@ -253,7 +241,6 @@ const Map = () => {
       (selectedRoute || (alternateRoutes && alternateRoutes.length > 0)) &&
       !state.isInitialRouteCalculated
     ) {
-      console.log("app/index.tsx: Initial route calculation complete.");
       dispatch({ type: "SET_INITIAL_ROUTE_CALCULATED", payload: true });
     }
   }, [
@@ -264,13 +251,13 @@ const Map = () => {
     state.isInitialRouteCalculated,
   ]);
 
-  const globalTrafficLevel = useMemo(() => {
-    if (selectedRoute && routeFeatures && routeFeatures["primary"]) {
-      return routeFeatures["primary"].trafficLevel;
-    }
-    return "unknown";
-  }, [selectedRoute, routeFeatures]);
-
+  const globalTrafficLevel = useMemo(
+    () =>
+      selectedRoute && routeFeatures && routeFeatures["primary"]
+        ? routeFeatures["primary"].trafficLevel
+        : "unknown",
+    [selectedRoute, routeFeatures]
+  );
   const { pins: alertPinsFromHook } = useAlertPins(
     liveUserLocation
       ? { latitude: liveUserLocation[1], longitude: liveUserLocation[0] }
@@ -279,11 +266,6 @@ const Map = () => {
 
   useEffect(() => {
     if (qrData && !qrDataProcessed.current && userLocation) {
-      console.log(
-        "Processing QR code data with user location:",
-        qrData,
-        userLocation
-      );
       qrDataProcessed.current = true;
       dispatch({ type: "SET_INITIAL_ROUTE_CALCULATED", payload: false });
       setSelectedRoute(null);
@@ -296,17 +278,11 @@ const Map = () => {
             : undefined;
         setRouteExcludes(qrExcludes);
         calculateRoutes(userLocation, qrData.toCoords, qrExcludes);
-      } else {
-        Alert.alert("QR Code Error", "Invalid route data in QR code.");
-      }
+      } else Alert.alert("QR Code Error", "Invalid route data.");
       setTimeout(() => {
         setQRData(null);
         qrDataProcessed.current = false;
       }, 1500);
-    } else if (qrData && !userLocation) {
-      console.log(
-        "QR data received, but waiting for user location to process."
-      );
     }
   }, [
     qrData,
@@ -363,7 +339,7 @@ const Map = () => {
 
   const handleDestinationSelected = useCallback(
     (coords: [number, number]) => {
-      dispatch({ type: "SET_DESTINATION", payload: coords }); // This will set isInitialRouteCalculated to false
+      dispatch({ type: "SET_DESTINATION", payload: coords });
       setSelectedRouteIdxState(0);
       if (userLocation) {
         const currentExcludes = getExcludesFromPreferences(
@@ -374,12 +350,11 @@ const Map = () => {
           coords,
           currentExcludes.length > 0 ? currentExcludes : undefined
         );
-      } else {
+      } else
         Alert.alert(
           "Location Needed",
-          "Waiting for your current location to calculate routes."
+          "Waiting for location to calculate routes."
         );
-      }
     },
     [userLocation, calculateRoutes, userData?.preferences]
   );
@@ -392,16 +367,12 @@ const Map = () => {
   }, [setSelectedRoute, setAlternateRoutes]);
 
   const handleUIRouteSelected = useCallback(
-    (route: Route) => {
-      // Removed alternates from params as chooseRoute handles it
-      chooseRoute(route, selectedRoute);
-    },
+    (route: Route) => chooseRoute(route, selectedRoute),
     [chooseRoute, selectedRoute]
   );
-
   const handleUIStartNavigation = useCallback(async () => {
     if (!selectedRoute) {
-      Alert.alert("Error", "No route selected to start navigation.");
+      Alert.alert("Error", "No route selected.");
       return;
     }
     await startNavigation();
@@ -417,34 +388,30 @@ const Map = () => {
 
   const handleTogglePreference = useCallback(
     (id: string, value: boolean) => {
-      const newPreferences = preferences.map((pref) =>
-        pref.id === id ? { ...pref, enabled: value } : pref
+      const newPreferences = preferences.map((p) =>
+        p.id === id ? { ...p, enabled: value } : p
       );
       setPreferences(newPreferences);
-      const newPrefsObject = newPreferences.reduce((acc, pref) => {
-        // @ts-ignore
-        acc[pref.id] = pref.enabled;
+      const newPrefsObj = newPreferences.reduce((acc, p) => {
+        (acc as any)[p.id] = p.enabled;
         return acc;
       }, {} as UserPreferences);
-      const newExcludes = getExcludesFromPreferences(newPrefsObject);
+      const newExcludes = getExcludesFromPreferences(newPrefsObj);
       setRouteExcludes(newExcludes.length > 0 ? newExcludes : undefined);
-      // TODO: If signed in, call a function from useUser to update preferences on backend.
     },
     [preferences, setRouteExcludes]
   );
 
-  const handleRecalculateButtonPressed = useCallback(() => {
-    console.log("app/index.tsx: Recalculate button pressed by user.");
-    recalculateRoute(); // This calls manualRecalculateRoute from useRoute
-  }, [recalculateRoute]);
+  const handleRecalculateButtonPressed = useCallback(
+    () => recalculateRoute(),
+    [recalculateRoute]
+  );
 
-  // Determine if the full-screen loading overlay should be shown
   const showFullScreenLoadingOverlay =
     state.isInitializing ||
     (routeHookLoading && !state.isInitialRouteCalculated && !isRerouting);
 
   if (state.isInitializing && !userLocation) {
-    // Show basic initializing screen until location is first found
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#4285F4" />
@@ -487,61 +454,45 @@ const Map = () => {
           followZoomLevel={isNavigating ? 17 : 15}
           centerCoordinate={
             !isNavigating && liveUserLocation ? liveUserLocation : undefined
-          } // Use liveUserLocation from useRoute for camera
+          }
           zoomLevel={!isNavigating && liveUserLocation ? 15 : undefined}
         />
 
         {!isNavigating &&
           alternateRoutes &&
-          alternateRoutes.map((route, index) => (
+          alternateRoutes.map((altRoute, index) => (
             <Mapbox.ShapeSource
-              id={`altRouteSource-${index}`}
-              key={`altRouteSource-${index}`}
-              shape={{
-                type: "LineString",
-                coordinates: route.geometry.coordinates,
-              }}
+              id={`altRoute-${index}`}
+              key={`altRoute-${index}`}
+              shape={altRoute.geometry}
             >
               <Mapbox.LineLayer
-                id={`altRouteFill-${index}`}
-                style={{
-                  lineColor: "grey",
-                  lineWidth: 4,
-                  lineOpacity: 0.6,
-                  lineCap: "round",
-                  lineJoin: "round",
-                }}
-                belowLayerID={selectedRoute ? "routeFill" : undefined}
+                id={`altLine-${index}`}
+                style={{ lineColor: "grey", lineWidth: 4, lineOpacity: 0.5 }}
               />
             </Mapbox.ShapeSource>
           ))}
 
         {selectedRoute && selectedRoute.geometry.coordinates.length > 0 && (
-          <Mapbox.ShapeSource
-            id="routeSource"
-            shape={{
-              type: "LineString",
-              coordinates: selectedRoute.geometry.coordinates,
-            }}
-          >
+          <Mapbox.ShapeSource id="routeSource" shape={selectedRoute.geometry}>
             <Mapbox.LineLayer
               id="routeFill"
               style={{
                 lineColor: isNavigating
-                  ? "#2196F3"
+                  ? "#60a5fa"
                   : selectedRouteIdxState === 0
                   ? "#3b82f6"
-                  : "grey",
-                lineWidth: isNavigating ? 6 : 5,
+                  : "grey", // Lighter blue for navigating
+                lineWidth: isNavigating ? 7 : 6, // Slightly thicker when navigating
                 lineCap: "round",
                 lineJoin: "round",
-                lineOpacity: isNavigating ? 0.9 : 0.7,
+                lineOpacity: isNavigating ? 0.85 : 0.75,
               }}
             />
           </Mapbox.ShapeSource>
         )}
 
-        {isNavigating && traveledCoords.length > 1 && (
+        {isNavigating && traveledCoords && traveledCoords.length > 1 && (
           <Mapbox.ShapeSource
             id="traveledRoute"
             shape={{ type: "LineString", coordinates: traveledCoords }}
@@ -549,13 +500,13 @@ const Map = () => {
             <Mapbox.LineLayer
               id="traveledLine"
               style={{
-                lineColor: "#4CAF50",
-                lineWidth: 7,
+                lineColor: "#9ca3af", // Tailwind gray-400 / a medium-light gray
+                lineWidth: 7, // Same as navigating route for seamless overlay
                 lineCap: "round",
                 lineJoin: "round",
-                lineOpacity: 0.8,
+                lineOpacity: 0.9, // Slightly more opaque to cover underlying route
               }}
-              aboveLayerID={selectedRoute ? "routeFill" : undefined}
+              aboveLayerID="routeFill" // Ensure it's drawn on top of the main selected route line
             />
           </Mapbox.ShapeSource>
         )}
@@ -590,8 +541,7 @@ const Map = () => {
               : { isEnabled: true }
           }
           puckBearingEnabled={true}
-          puckBearing="course" // Ensures puck rotates with course
-          // headingImage={require('../assets/images/navigation_puck.png')} // Uncomment if you have this asset
+          puckBearing="course"
         />
       </MapView>
 
@@ -625,7 +575,7 @@ const Map = () => {
       )}
 
       <SearchAndRouteControl
-        userLocation={userLocation} // Pass the initial/current userLocation for origin
+        userLocation={userLocation}
         onDestinationSelected={handleDestinationSelected}
         onStartNavigation={handleUIStartNavigation}
         onCancelSearch={handleCancelSearch}
@@ -633,13 +583,13 @@ const Map = () => {
         calculateRoutes={calculateRoutes}
         loading={
           routeHookLoading && !isRerouting && !state.isInitialRouteCalculated
-        } // Show loading in SearchAndRoute only for initial calc
+        }
         visible={
           state.uiMode === "search" || state.uiMode === "route-selection"
         }
         routeFeatures={routeFeatures}
         selectedRoute={selectedRoute}
-        alternateRoutes={alternateRoutes || []} // Ensure alternateRoutes is not undefined
+        alternateRoutes={alternateRoutes || []}
         selectedRouteIndex={selectedRouteIdxState}
         setSelectedRouteIndex={setSelectedRouteIdxState}
       />
@@ -699,14 +649,12 @@ const Map = () => {
         </View>
       )}
 
-      {/* Subtle Rerouting Indicator */}
-      {isRerouting &&
-        !showFullScreenLoadingOverlay && ( // Show only if full screen isn't active
-          <View style={styles.reroutingIndicator}>
-            <ActivityIndicator size="small" color="#007AFF" />
-            <Text style={styles.reroutingText}>Recalcul en cours...</Text>
-          </View>
-        )}
+      {isRerouting && !showFullScreenLoadingOverlay && (
+        <View style={styles.reroutingIndicator}>
+          <ActivityIndicator size="small" color="#007AFF" />
+          <Text style={styles.reroutingText}>Recalcul en cours...</Text>
+        </View>
+      )}
 
       {showFullScreenLoadingOverlay && (
         <View style={styles.fullScreenLoading}>
