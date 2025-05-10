@@ -1,11 +1,12 @@
 // components/map/MapModals.tsx
-import React from 'react';
-import ReportAlertModal from '@/components/mapbox/pins/ReportAlertModal';
-import LoginRequiredModal from '@/components/mapbox/pins/LoginRequiredModal';
-import SideMenu from '@/components/settings/SideMenu';
-import PinInfoModal from '@/components/mapbox/pins/PinInfoModal';
-import { PinRead, UserPreferences } from '@/types/api';
-import { RoutingPreference } from '@/components/settings/RoutingPreferences';
+import React from "react";
+import ReportAlertModal from "@/components/mapbox/pins/ReportAlertModal";
+import LoginRequiredModal from "@/components/mapbox/pins/LoginRequiredModal";
+import SideMenu from "@/components/settings/SideMenu";
+import PinInfoModal from "@/components/mapbox/pins/PinInfoModal";
+import { PinRead, UserPreferences } from "@/types/api";
+import { RoutingPreference } from "@/components/settings/RoutingPreferences";
+import PinConfirmationModal from "../pins/PinConfirmationModal";
 
 interface MapModalsProps {
   reportModalVisible: boolean;
@@ -20,6 +21,10 @@ interface MapModalsProps {
   onTogglePreference: (id: string, value: boolean) => void;
   selectedPinForModal: PinRead | null;
   onClosePinInfoModal: () => void;
+  pinConfirmationModalVisible: boolean;
+  pinForConfirmation: PinRead | null;
+  onPinConfirmationResponse: (isStillThere: boolean) => void;
+  pinConfirmationTimeout?: number;
 }
 
 const MapModals: React.FC<MapModalsProps> = ({
@@ -35,6 +40,10 @@ const MapModals: React.FC<MapModalsProps> = ({
   onTogglePreference,
   selectedPinForModal,
   onClosePinInfoModal,
+  pinConfirmationModalVisible,
+  pinForConfirmation,
+  onPinConfirmationResponse,
+  pinConfirmationTimeout,
 }) => {
   return (
     <>
@@ -61,6 +70,14 @@ const MapModals: React.FC<MapModalsProps> = ({
         selectedPin={selectedPinForModal}
         onClose={onClosePinInfoModal}
       />
+      {pinConfirmationModalVisible && pinForConfirmation && (
+        <PinConfirmationModal
+          visible={pinConfirmationModalVisible}
+          pin={pinForConfirmation}
+          onResponse={onPinConfirmationResponse}
+          timeoutDuration={pinConfirmationTimeout}
+        />
+      )}
     </>
   );
 };

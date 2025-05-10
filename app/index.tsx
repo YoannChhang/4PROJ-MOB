@@ -38,6 +38,8 @@ import MapDisplay from "@/components/mapbox/display/MapDisplay";
 import MapControlsOverlay from "@/components/mapbox/display/MapControlsOverlay";
 import MapModals from "@/components/mapbox/display/MapModals";
 import MapFeedbackIndicators from "@/components/mapbox/display/MapFeedbackIndicators";
+import { useNearbyPinProximity } from "@/hooks/useNearbyPinProximity";
+import { usePins } from "@/providers/PinProvider";
 
 Mapbox.setAccessToken(Config.MAPBOX_PK as string);
 
@@ -128,12 +130,18 @@ interface CameraConfig {
   isManuallyControlled?: boolean;
 }
 
+const PIN_PROMPT_TIMEOUT_MS = 20 * 1000; // 20 seconds
+
 const Map = () => {
   const router = useRouter();
   const mapRef = useRef<MapView>(null);
   const { isSignedIn, userData, updatePreferences } = useUser();
+  const { removePin: removeAlertPin } = usePins();
   const [state, dispatch] = useReducer(appReducer, initialAppState);
   const [reportModalVisible, setReportModalVisible] = useState(false);
+
+  const [isPinConfirmationModalVisible, setIsPinConfirmationModalVisible] =
+    useState(false);
   const [loginPromptVisible, setLoginPromptVisible] = useState(false);
   const { qrData, setQRData } = useQRCode();
   const qrDataProcessed = useRef(false);
@@ -335,6 +343,65 @@ const Map = () => {
     [userLocation]
   );
   const { pins: alertPinsFromHook } = useAlertPins(alertPinsLocation);
+
+  const {
+    pinForConfirmationAttempt, // This is the pin identified by the hook
+    confirmPinHandled, // Call this after modal interaction
+  } = useNearbyPinProximity(
+    userLocation,
+    alertPinsFromHook,
+    isPinConfirmationModalVisible // Pass modal visibility
+  );
+
+  useEffect(() => {
+    if (pinForConfirmationAttempt && !isPinConfirmationModalVisible) {
+      console.log(
+        `[AppIndex] Pin ${pinForConfirmationAttempt.id} identified by proximity hook. Showing modal.`
+      );
+      setIsPinConfirmationModalVisible(true);
+      
+    } else if (!pinForConfirmationAttempt && isPinConfirmationModalVisible) {
+      setIsPinConfirmationModalVisible(false); // closes modal after pin is set to null
+    }
+  }, [pinForConfirmationAttempt, isPinConfirmationModalVisible]);
+
+  const handlePinConfirmationResponse = useCallback(
+    async (isStillThere: boolean) => {
+      const pinThatWasConfirmed = pinForConfirmationAttempt; // Capture before it might be cleared by confirmPinHandled
+
+      if (pinThatWasConfirmed) {
+        console.log(
+          `[AppIndex] User response for pin ${pinThatWasConfirmed.id}: ${
+            isStillThere ? "Still there" : "Not there"
+          }`
+        );
+        if (!isStillThere) {
+          try {
+            await removeAlertPin(pinThatWasConfirmed.id);
+            console.log(
+              `[AppIndex] Pin ${pinThatWasConfirmed.id} removed successfully.`
+            );
+          } catch (err) {
+            console.error(
+              `[AppIndex] Failed to remove pin ${pinThatWasConfirmed.id}:`,
+              err
+            );
+            Alert.alert(
+              "Error",
+              "Could not remove the pin. Please try again later."
+            );
+          }
+        }
+        // IMPORTANT: Notify the proximity hook that this pin's confirmation process is done.
+        confirmPinHandled(pinThatWasConfirmed.id);
+      } else {
+        console.warn(
+          "[AppIndex] handlePinConfirmationResponse called but pinForConfirmationAttempt was null when modal closed."
+        );
+      }
+    },
+    [pinForConfirmationAttempt, removeAlertPin, confirmPinHandled] // Add confirmPinHandled
+  );
 
   const handleMapPress = useCallback(() => {
     if (state.selectedPin !== null) {
@@ -674,6 +741,10 @@ const Map = () => {
         onClosePinInfoModal={() =>
           dispatch({ type: "SELECT_PIN", payload: null })
         }
+        pinConfirmationModalVisible={isPinConfirmationModalVisible}
+        pinForConfirmation={pinForConfirmationAttempt}
+        onPinConfirmationResponse={handlePinConfirmationResponse}
+        pinConfirmationTimeout={PIN_PROMPT_TIMEOUT_MS}
       />
 
       <MapFeedbackIndicators
