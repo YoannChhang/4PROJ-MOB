@@ -46,7 +46,7 @@ import HamburgerMenuButton from "@/components/settings/HamburgerMenuButton";
 import SideMenu from "@/components/settings/SideMenu";
 import QRCodeButton from "@/components/mapbox/QRCodeButton";
 import IncidentReportButton from "@/components/mapbox/IncidentReportButton";
-import ReportAlertButton from "@/components/mapbox/ReportAlertButton";
+import ReportAlertModal from "@/components/mapbox/ReportAlertModal";
 import LoginRequiredModal from "@/components/mapbox/LoginRequiredModal";
 import { RoutingPreference } from "@/components/settings/RoutingPreferences";
 import TrafficStatusIndicator from "@/components/mapbox/TrafficStatusIndicator";
@@ -69,7 +69,8 @@ type AppAction =
   | { type: "SET_DESTINATION"; payload: [number, number] | null }
   | { type: "START_NAVIGATION_UI" }
   | { type: "STOP_NAVIGATION_UI" }
-  | { type: "TOGGLE_SIDE_MENU" }
+  | { type: "OPEN_SIDE_MENU" }
+  | { type: "CLOSE_SIDE_MENU" }
   | { type: "SELECT_PIN"; payload: PinRead | null }
   | { type: "SET_INITIAL_ROUTE_CALCULATED"; payload: boolean };
 
@@ -78,7 +79,12 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
     case "INITIALIZE_COMPLETE":
       return { ...state, isInitializing: false };
     case "SHOW_SEARCH":
-      return { ...state, uiMode: "search", isInitialRouteCalculated: false };
+      return {
+        ...state,
+        uiMode: "search",
+        isInitialRouteCalculated: false,
+        isSideMenuOpen: false,
+      };
     case "HIDE_SEARCH":
       return {
         ...state,
@@ -90,11 +96,11 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
       return {
         ...state,
         destination: action.payload,
-        uiMode: action.payload ? "route-selection" : "search",
+        uiMode: action.payload ? "route-selection" : "search", // Stay in search/route-selection
         isInitialRouteCalculated: false,
       };
     case "START_NAVIGATION_UI":
-      return { ...state, uiMode: "navigation" };
+      return { ...state, uiMode: "navigation", isSideMenuOpen: false };
     case "STOP_NAVIGATION_UI":
       return {
         ...state,
@@ -102,8 +108,10 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
         destination: null,
         isInitialRouteCalculated: false,
       };
-    case "TOGGLE_SIDE_MENU":
-      return { ...state, isSideMenuOpen: !state.isSideMenuOpen };
+    case "OPEN_SIDE_MENU":
+      return { ...state, isSideMenuOpen: true, uiMode: "map" }; // Ensure map mode when menu opens
+    case "CLOSE_SIDE_MENU":
+      return { ...state, isSideMenuOpen: false };
     case "SELECT_PIN":
       return { ...state, selectedPin: action.payload };
     case "SET_INITIAL_ROUTE_CALCULATED":
@@ -126,7 +134,7 @@ const Map = () => {
   const router = useRouter();
   const pathname = usePathname();
   const mapRef = useRef<MapView>(null);
-  const { isSignedIn, userData } = useUser();
+  const { isSignedIn, userData, updatePreferences } = useUser();
   const [state, dispatch] = useReducer(appReducer, initialAppState);
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [loginPromptVisible, setLoginPromptVisible] = useState(false);
@@ -228,10 +236,11 @@ const Map = () => {
   }, []);
 
   useEffect(() => {
-    if (isNavigating && state.uiMode !== "navigation")
+    if (isNavigating && state.uiMode !== "navigation") {
       dispatch({ type: "START_NAVIGATION_UI" });
-    else if (!isNavigating && state.uiMode === "navigation")
+    } else if (!isNavigating && state.uiMode === "navigation") {
       dispatch({ type: "STOP_NAVIGATION_UI" });
+    }
   }, [isNavigating, state.uiMode]);
 
   useEffect(() => {
@@ -271,6 +280,8 @@ const Map = () => {
       setSelectedRoute(null);
       setAlternateRoutes([]);
       if (qrData.toCoords) {
+        // When QR code provides destination, show search/route-selection UI
+        dispatch({ type: "SHOW_SEARCH" }); // Or directly to route-selection if preferred
         dispatch({ type: "SET_DESTINATION", payload: qrData.toCoords });
         const qrExcludes =
           qrData.excludes && qrData.excludes.length > 0
@@ -299,17 +310,50 @@ const Map = () => {
       dispatch({ type: "SELECT_PIN", payload: null });
       return;
     }
-    if (state.uiMode === "map") dispatch({ type: "SHOW_SEARCH" });
-  }, [state.selectedPin, state.uiMode]);
+  }, [state.selectedPin]);
 
-  const toggleSearchUI = useCallback(() => {
-    if (state.uiMode === "map") dispatch({ type: "SHOW_SEARCH" });
-    else if (state.uiMode === "search" || state.uiMode === "route-selection") {
+  const handleToggleSearchUI = useCallback(() => {
+    if (state.uiMode === "map" && !state.isSideMenuOpen) {
+      dispatch({ type: "SHOW_SEARCH" });
+    } else if (
+      state.uiMode === "search" ||
+      state.uiMode === "route-selection"
+    ) {
       dispatch({ type: "HIDE_SEARCH" });
       setSelectedRoute(null);
       setAlternateRoutes([]);
+      setSelectedRouteIdxState(0);
+    } else if (state.isSideMenuOpen) {
+      // If menu is open and search is tapped, close menu and open search
+      dispatch({ type: "CLOSE_SIDE_MENU" });
+      dispatch({ type: "SHOW_SEARCH" });
     }
-  }, [state.uiMode, setSelectedRoute, setAlternateRoutes]);
+  }, [
+    state.uiMode,
+    state.isSideMenuOpen,
+    setSelectedRoute,
+    setAlternateRoutes,
+  ]);
+
+  const handleToggleSideMenu = useCallback(() => {
+    if (state.isSideMenuOpen) {
+      dispatch({ type: "CLOSE_SIDE_MENU" });
+    } else {
+      // If search is open, close it and then open the menu
+      if (state.uiMode === "search" || state.uiMode === "route-selection") {
+        dispatch({ type: "HIDE_SEARCH" });
+        setSelectedRoute(null);
+        setAlternateRoutes([]);
+        setSelectedRouteIdxState(0);
+      }
+      dispatch({ type: "OPEN_SIDE_MENU" });
+    }
+  }, [
+    state.isSideMenuOpen,
+    state.uiMode,
+    setSelectedRoute,
+    setAlternateRoutes,
+  ]);
 
   const handleQRScan = useCallback(() => router.push("/qr-scanner"), [router]);
   const handleOpenReportModal = useCallback(
@@ -330,17 +374,31 @@ const Map = () => {
   );
   const navigateToLogin = useCallback(() => {
     setLoginPromptVisible(false);
+    dispatch({ type: "CLOSE_SIDE_MENU" }); // Ensure menu is closed before navigating
     router.push("/auth");
   }, [router]);
+
   const handleSelectPin = useCallback(
-    (pin: PinRead) => dispatch({ type: "SELECT_PIN", payload: pin }),
-    []
+    (pin: PinRead) => {
+      // If search or side menu is open, close them before selecting pin
+      if (state.uiMode === "search" || state.uiMode === "route-selection") {
+        dispatch({ type: "HIDE_SEARCH" });
+        setSelectedRoute(null);
+        setAlternateRoutes([]);
+        setSelectedRouteIdxState(0);
+      }
+      if (state.isSideMenuOpen) {
+        dispatch({ type: "CLOSE_SIDE_MENU" });
+      }
+      dispatch({ type: "SELECT_PIN", payload: pin });
+    },
+    [state.uiMode, state.isSideMenuOpen, setSelectedRoute, setAlternateRoutes]
   );
 
   const handleDestinationSelected = useCallback(
     (coords: [number, number]) => {
       dispatch({ type: "SET_DESTINATION", payload: coords });
-      setSelectedRouteIdxState(0);
+      setSelectedRouteIdxState(0); // Reset for new destination
       if (userLocation) {
         const currentExcludes = getExcludesFromPreferences(
           userData?.preferences
@@ -359,7 +417,8 @@ const Map = () => {
     [userLocation, calculateRoutes, userData?.preferences]
   );
 
-  const handleCancelSearch = useCallback(() => {
+  // This is called by SearchAndRouteControl's cancel/back button
+  const handleCancelSearchUIMode = useCallback(() => {
     dispatch({ type: "HIDE_SEARCH" });
     setSelectedRoute(null);
     setAlternateRoutes([]);
@@ -367,23 +426,30 @@ const Map = () => {
   }, [setSelectedRoute, setAlternateRoutes]);
 
   const handleUIRouteSelected = useCallback(
-    (route: Route) => chooseRoute(route, selectedRoute),
-    [chooseRoute, selectedRoute]
+    (route: Route) => {
+      // This is actually for choosing between primary/alternate
+      // The `index` parameter from SearchAndRouteControl determines which route.
+      // Here we assume `route` is the one already identified as chosen by the UI.
+      // `chooseRoute` updates `selectedRoute` and `alternateRoutes` based on what's passed.
+      chooseRoute(route, selectedRoute); // Pass current selectedRoute for comparison
+    },
+    [chooseRoute, selectedRoute] // `selectedRoute` is needed for `previousRoute` in `chooseRoute`
   );
+
   const handleUIStartNavigation = useCallback(async () => {
     if (!selectedRoute) {
       Alert.alert("Error", "No route selected.");
       return;
     }
-    await startNavigation();
+    await startNavigation(); // This will set isNavigating, which triggers START_NAVIGATION_UI
   }, [selectedRoute, startNavigation]);
 
   const handleUICancelNavigation = useCallback(() => {
-    stopNavigation();
+    stopNavigation(); // This will set isNavigating to false, triggering STOP_NAVIGATION_UI
     setSelectedRoute(null);
     setAlternateRoutes([]);
     setSelectedRouteIdxState(0);
-    dispatch({ type: "HIDE_SEARCH" })
+    dispatch({ type: "HIDE_SEARCH" }); // Go back to map mode after cancelling navigation
     qrDataProcessed.current = false;
   }, [stopNavigation, setSelectedRoute, setAlternateRoutes]);
 
@@ -393,14 +459,25 @@ const Map = () => {
         p.id === id ? { ...p, enabled: value } : p
       );
       setPreferences(newPreferences);
+
+      // Create preference object to match backend format
       const newPrefsObj = newPreferences.reduce((acc, p) => {
         (acc as any)[p.id] = p.enabled;
         return acc;
       }, {} as UserPreferences);
+
+      // Update user preferences via API if signed in
+      if (isSignedIn) {
+        updatePreferences(newPrefsObj).catch((err) =>
+          console.error("Failed to update user preferences on backend:", err)
+        );
+      }
+
+      // Also update local route excludes for immediate use
       const newExcludes = getExcludesFromPreferences(newPrefsObj);
       setRouteExcludes(newExcludes.length > 0 ? newExcludes : undefined);
     },
-    [preferences, setRouteExcludes]
+    [preferences, setRouteExcludes, isSignedIn, updatePreferences]
   );
 
   const handleRecalculateButtonPressed = useCallback(
@@ -413,6 +490,7 @@ const Map = () => {
     (routeHookLoading && !state.isInitialRouteCalculated && !isRerouting);
 
   if (state.isInitializing && !userLocation) {
+    // Show basic loading only if no location yet
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#4285F4" />
@@ -437,29 +515,39 @@ const Map = () => {
             state.uiMode === "navigation"
               ? Platform.OS === "ios"
                 ? 160
-                : 130
+                : 130 // Adjust as needed for NavigationInterface height
               : 8,
           right: 8,
         }}
-        onPress={handleMapPress}
+        onPress={handleMapPress} // Only deselects pins now
       >
         <Camera
           animationMode="flyTo"
           animationDuration={1500}
-          followUserLocation={isNavigating}
+          followUserLocation={
+            isNavigating || (state.uiMode === "map" && !state.destination)
+          } // Follow when navigating OR in map mode without a destination set
           followUserMode={
             isNavigating
               ? UserTrackingMode.FollowWithCourse
               : UserTrackingMode.Follow
           }
           followZoomLevel={isNavigating ? 17 : 15}
+          // Center on user location if not navigating and no specific destination is focused
           centerCoordinate={
-            !isNavigating && liveUserLocation ? liveUserLocation : undefined
+            !isNavigating && liveUserLocation && !state.destination
+              ? liveUserLocation
+              : undefined
           }
-          zoomLevel={!isNavigating && liveUserLocation ? 15 : undefined}
+          zoomLevel={
+            !isNavigating && liveUserLocation && !state.destination
+              ? 15
+              : undefined
+          }
         />
 
-        {!isNavigating &&
+        {/* Alternate Routes Rendering (only when route selection is active) */}
+        {state.uiMode === "route-selection" &&
           alternateRoutes &&
           alternateRoutes.map((altRoute, index) => (
             <Mapbox.ShapeSource
@@ -469,30 +557,44 @@ const Map = () => {
             >
               <Mapbox.LineLayer
                 id={`altLine-${index}`}
-                style={{ lineColor: "grey", lineWidth: 4, lineOpacity: 0.5 }}
+                style={{
+                  lineColor:
+                    selectedRouteIdxState === index + 1 ? "#2563eb" : "grey", // Highlight if selected
+                  lineWidth: selectedRouteIdxState === index + 1 ? 6 : 4,
+                  lineOpacity: 0.6,
+                }}
               />
             </Mapbox.ShapeSource>
           ))}
 
+        {/* Selected Route Rendering */}
         {selectedRoute && selectedRoute.geometry.coordinates.length > 0 && (
           <Mapbox.ShapeSource id="routeSource" shape={selectedRoute.geometry}>
             <Mapbox.LineLayer
               id="routeFill"
               style={{
                 lineColor: isNavigating
-                  ? "#60a5fa"
-                  : selectedRouteIdxState === 0
-                  ? "#3b82f6"
-                  : "grey", // Lighter blue for navigating
-                lineWidth: isNavigating ? 7 : 6, // Slightly thicker when navigating
+                  ? "#60a5fa" // Navigation active color
+                  : state.uiMode === "route-selection" &&
+                    selectedRouteIdxState === 0
+                  ? "#3b82f6" // Primary selected in route-selection
+                  : state.uiMode === "route-selection"
+                  ? "grey" // Not selected in route-selection (should be covered by alternate logic)
+                  : "#3b82f6", // Default display on map before navigation
+                lineWidth: isNavigating ? 7 : 6,
                 lineCap: "round",
                 lineJoin: "round",
-                lineOpacity: isNavigating ? 0.85 : 0.75,
+                lineOpacity: isNavigating
+                  ? 0.85
+                  : state.uiMode === "route-selection"
+                  ? 0.75
+                  : 0.75,
               }}
             />
           </Mapbox.ShapeSource>
         )}
 
+        {/* Traveled Path during Navigation */}
         {isNavigating && traveledCoords && traveledCoords.length > 1 && (
           <Mapbox.ShapeSource
             id="traveledRoute"
@@ -501,34 +603,39 @@ const Map = () => {
             <Mapbox.LineLayer
               id="traveledLine"
               style={{
-                lineColor: "#9ca3af", // Tailwind gray-400 / a medium-light gray
-                lineWidth: 7, // Same as navigating route for seamless overlay
+                lineColor: "#9ca3af",
+                lineWidth: 7,
                 lineCap: "round",
                 lineJoin: "round",
-                lineOpacity: 0.9, // Slightly more opaque to cover underlying route
+                lineOpacity: 0.9,
               }}
-              aboveLayerID="routeFill" // Ensure it's drawn on top of the main selected route line
+              aboveLayerID="routeFill"
             />
           </Mapbox.ShapeSource>
         )}
 
-        {state.destination && !isNavigating && (
-          <PointAnnotation
-            id="destinationLocation"
-            coordinate={state.destination}
-          >
-            <View style={styles.destinationMarker}>
-              <View style={styles.destinationMarkerInner} />
-            </View>
-          </PointAnnotation>
-        )}
+        {/* Destination Marker (only when route selection is active and not navigating) */}
+        {state.destination &&
+          state.uiMode === "route-selection" &&
+          !isNavigating && (
+            <PointAnnotation
+              id="destinationLocation"
+              coordinate={state.destination}
+            >
+              <View style={styles.destinationMarker}>
+                <View style={styles.destinationMarkerInner} />
+              </View>
+            </PointAnnotation>
+          )}
 
+        {/* Alert Pins */}
         {alertPinsFromHook.map((pin) => (
           <PointAnnotation
             key={`pin-${pin.id}`}
             id={`pin-${pin.id}`}
             coordinate={[pin.longitude, pin.latitude]}
-            onSelected={() => handleSelectPin(pin)}
+            onSelected={() => handleSelectPin(pin)} // onSelected is Mapbox's prop for tap
+            onDeselected={() => dispatch({ type: "SELECT_PIN", payload: null })} // Optional: handle deselection too
           >
             <SimplifiedAlertPin type={pin.type} />
           </PointAnnotation>
@@ -539,16 +646,15 @@ const Map = () => {
           pulsing={
             isNavigating
               ? { isEnabled: true, color: "rgba(0,122,255,0.3)" }
-              : { isEnabled: true }
+              : { isEnabled: true } // Pulse always when puck is visible
           }
           puckBearingEnabled={true}
-          puckBearing="course"
+          puckBearing="course" // Bearing based on device course
         />
       </MapView>
 
-      <HamburgerMenuButton
-        onPress={() => dispatch({ type: "TOGGLE_SIDE_MENU" })}
-      />
+      {/* UI Elements absolutely positioned over the map */}
+      <HamburgerMenuButton onPress={handleToggleSideMenu} />
       <IncidentReportButton
         onPress={handleOpenReportModal}
         isSignedIn={isSignedIn}
@@ -556,35 +662,40 @@ const Map = () => {
       />
       <QRCodeButton onPress={handleQRScan} />
 
-      {!isNavigating && (
+      {/* Search FAB - only visible in 'map' mode and when not navigating and side menu is closed */}
+      {!isNavigating && state.uiMode === "map" && !state.isSideMenuOpen && (
         <FloatingActionButton
           iconName="search-location"
-          onPress={toggleSearchUI}
-          visible={state.uiMode === "map"}
+          onPress={handleToggleSearchUI}
+          visible={true} // Visibility now controlled by the conditional rendering wrapper
           backgroundColor="#4285F4"
           size="medium"
           style={{ bottom: 20, left: 20 }}
         />
       )}
 
-      {globalTrafficLevel !== "unknown" && !isNavigating && (
-        <TrafficStatusIndicator
-          trafficLevel={globalTrafficLevel}
-          compact={false}
-          style={{ position: "absolute", top: 50, right: 120, zIndex: 10 }}
-        />
-      )}
+      {/* Traffic Status Indicator - visible when not navigating and traffic data available */}
+      {globalTrafficLevel !== "unknown" &&
+        !isNavigating &&
+        state.uiMode === "map" && (
+          <TrafficStatusIndicator
+            trafficLevel={globalTrafficLevel}
+            compact={false} // Or true, depending on desired look
+            style={{ position: "absolute", top: 50, right: 120, zIndex: 10 }}
+          />
+        )}
 
+      {/* Search and Route Control Panel */}
       <SearchAndRouteControl
         userLocation={userLocation}
         onDestinationSelected={handleDestinationSelected}
         onStartNavigation={handleUIStartNavigation}
-        onCancelSearch={handleCancelSearch}
+        onCancelSearch={handleCancelSearchUIMode} // Renamed for clarity
         onRouteSelected={handleUIRouteSelected}
         calculateRoutes={calculateRoutes}
         loading={
           routeHookLoading && !isRerouting && !state.isInitialRouteCalculated
-        }
+        } // Show loading for initial calculation
         visible={
           state.uiMode === "search" || state.uiMode === "route-selection"
         }
@@ -595,6 +706,7 @@ const Map = () => {
         setSelectedRouteIndex={setSelectedRouteIdxState}
       />
 
+      {/* Navigation Interface */}
       {isNavigating && selectedRoute && (
         <NavigationInterface
           route={selectedRoute}
@@ -610,8 +722,9 @@ const Map = () => {
         />
       )}
 
-      {reportModalVisible && (
-        <ReportAlertButton
+      {/* Modals */}
+      {reportModalVisible && ( // Render conditionally to ensure it's not always in the tree
+        <ReportAlertModal
           userLocation={
             liveUserLocation
               ? {
@@ -631,11 +744,8 @@ const Map = () => {
       />
       <SideMenu
         isVisible={state.isSideMenuOpen}
-        onClose={() => dispatch({ type: "TOGGLE_SIDE_MENU" })}
-        toLogin={() => {
-          if (pathname !== "/auth") router.push("/auth");
-          dispatch({ type: "TOGGLE_SIDE_MENU" });
-        }}
+        onClose={handleToggleSideMenu} // SideMenu's own close mechanism calls this
+        toLogin={navigateToLogin}
         preferences={preferences}
         onTogglePreference={handleTogglePreference}
       />
@@ -644,12 +754,14 @@ const Map = () => {
         onClose={() => dispatch({ type: "SELECT_PIN", payload: null })}
       />
 
+      {/* Error Display */}
       {routeHookError && (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{routeHookError}</Text>
         </View>
       )}
 
+      {/* Rerouting Indicator (non-blocking) */}
       {isRerouting && !showFullScreenLoadingOverlay && (
         <View style={styles.reroutingIndicator}>
           <ActivityIndicator size="small" color="#007AFF" />
@@ -657,6 +769,7 @@ const Map = () => {
         </View>
       )}
 
+      {/* Full Screen Loading Overlay (blocking) */}
       {showFullScreenLoadingOverlay && (
         <View style={styles.fullScreenLoading}>
           <ActivityIndicator size="large" color="#FFFFFF" />
@@ -678,14 +791,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F5FCFF",
+    backgroundColor: "#F5FCFF", // Or your app's background
   },
   loadingText: { marginTop: 12, fontSize: 16, color: "#555" },
   destinationMarker: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "rgba(59, 130, 246, 0.3)",
+    backgroundColor: "rgba(59, 130, 246, 0.3)", // Light blue halo
     justifyContent: "center",
     alignItems: "center",
   },
@@ -693,7 +806,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: "#3b82f6",
+    backgroundColor: "#3b82f6", // Solid blue core
     borderWidth: 2,
     borderColor: "white",
   },
@@ -702,11 +815,11 @@ const styles = StyleSheet.create({
     top: Platform.OS === "ios" ? 60 : 20,
     left: 20,
     right: 20,
-    backgroundColor: "rgba(220, 53, 69, 0.9)",
+    backgroundColor: "rgba(220, 53, 69, 0.9)", // Red for error
     padding: 12,
     borderRadius: 8,
     alignItems: "center",
-    zIndex: 2000,
+    zIndex: 2000, // High zIndex to show over other UI
   },
   errorText: { color: "white", fontWeight: "bold", textAlign: "center" },
   fullScreenLoading: {
@@ -718,7 +831,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 9999,
+    zIndex: 9999, // Highest zIndex
   },
   fullScreenLoadingText: {
     color: "#FFFFFF",
@@ -728,12 +841,12 @@ const styles = StyleSheet.create({
   },
   reroutingIndicator: {
     position: "absolute",
-    top: Platform.OS === "ios" ? 60 : 20,
+    top: Platform.OS === "ios" ? 60 : 20, // Below status bar
     alignSelf: "center",
     backgroundColor: "rgba(255, 255, 255, 0.9)",
     paddingHorizontal: 15,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 20, // Pill shape
     flexDirection: "row",
     alignItems: "center",
     shadowColor: "#000",
@@ -741,9 +854,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 2,
     elevation: 3,
-    zIndex: 1000,
+    zIndex: 1000, // Above map, below modals
   },
-  reroutingText: { marginLeft: 10, fontSize: 14, color: "#007AFF" },
+  reroutingText: { marginLeft: 10, fontSize: 14, color: "#007AFF" }, // iOS blue
 });
 
 export default Map;

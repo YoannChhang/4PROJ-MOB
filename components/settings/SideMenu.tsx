@@ -1,25 +1,25 @@
-import React, { useRef, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  Animated, 
-  TouchableWithoutFeedback, 
+import React, { useRef, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Animated,
+  TouchableWithoutFeedback,
   TouchableOpacity,
   Dimensions,
   ScrollView,
   BackHandler,
   Platform,
   StatusBar,
-  SafeAreaView 
-} from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
-import ProfileSection from './ProfileSection';
-import RoutingPreferences, { RoutingPreference } from './RoutingPreferences';
-import { useColorScheme } from '@/hooks/useColorScheme';
-import { Colors } from '@/constants/Colors';
+  SafeAreaView,
+} from "react-native";
+import { FontAwesome5 } from "@expo/vector-icons";
+import ProfileSection from "./ProfileSection";
+import RoutingPreferences, { RoutingPreference } from "./RoutingPreferences";
+import { useColorScheme } from "@/hooks/useColorScheme";
+import { Colors } from "@/constants/Colors";
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 const MENU_WIDTH = width * 0.85; // 85% of screen width
 
 interface SideMenuProps {
@@ -30,14 +30,14 @@ interface SideMenuProps {
   onTogglePreference: (id: string, value: boolean) => void;
 }
 
-const SideMenu: React.FC<SideMenuProps> = ({ 
-  isVisible, 
-  onClose, 
+const SideMenu: React.FC<SideMenuProps> = ({
+  isVisible,
+  onClose,
   toLogin,
   preferences,
-  onTogglePreference
+  onTogglePreference,
 }) => {
-  const colorScheme = useColorScheme() ?? 'light';
+  const colorScheme = useColorScheme() ?? "light";
   const slideAnim = useRef(new Animated.Value(-MENU_WIDTH)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -53,7 +53,7 @@ const SideMenu: React.FC<SideMenuProps> = ({
           bounciness: 0,
         }),
         Animated.timing(fadeAnim, {
-          toValue: 0.5,
+          toValue: 0.5, // Overlay opacity
           duration: 300,
           useNativeDriver: true,
         }),
@@ -78,11 +78,11 @@ const SideMenu: React.FC<SideMenuProps> = ({
   // Handle back button press on Android
   useEffect(() => {
     const backHandler = BackHandler.addEventListener(
-      'hardwareBackPress',
+      "hardwareBackPress",
       () => {
         if (isVisible) {
           onClose();
-          return true;
+          return true; // Prevent default back behavior
         }
         return false;
       }
@@ -91,36 +91,36 @@ const SideMenu: React.FC<SideMenuProps> = ({
     return () => backHandler.remove();
   }, [isVisible, onClose]);
 
-  // Return null when not visible and animation is complete
-  if (!isVisible && slideAnim._value === -MENU_WIDTH) {
-    return null;
-  }
-
-  const statusBarHeight = Platform.OS === 'ios' ? 
-    StatusBar.currentHeight || 44 : 
-    StatusBar.currentHeight || 0;
+  // Determine status bar height for padding
+  const statusBarHeight =
+    Platform.OS === "ios"
+      ? StatusBar.currentHeight || (height > 800 ? 44 : 20) // Approximation for notched iOS
+      : StatusBar.currentHeight || 0;
 
   return (
-    <View style={styles.container}>
-      {/* Dark overlay */}
-      <TouchableWithoutFeedback onPress={onClose}>
-        <Animated.View 
-          style={[
-            styles.overlay, 
-            { opacity: fadeAnim }
-          ]} 
-        />
+    <View
+      style={styles.container}
+      // pointerEvents is crucial to prevent taps passing through or
+      // re-triggering close during animation.
+      pointerEvents={isVisible ? "auto" : "none"}
+    >
+      {/* Dark overlay - only touchable when menu is visible */}
+      <TouchableWithoutFeedback
+        onPress={isVisible ? onClose : undefined}
+        disabled={!isVisible}
+      >
+        <Animated.View style={[styles.overlay, { opacity: fadeAnim }]} />
       </TouchableWithoutFeedback>
-      
+
       {/* Menu panel */}
-      <Animated.View 
+      <Animated.View
         style={[
-          styles.menu, 
-          { 
+          styles.menu,
+          {
             transform: [{ translateX: slideAnim }],
             backgroundColor: Colors[colorScheme].background,
             paddingTop: statusBarHeight,
-          }
+          },
         ]}
       >
         <View style={styles.header}>
@@ -128,17 +128,21 @@ const SideMenu: React.FC<SideMenuProps> = ({
             Settings
           </Text>
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <FontAwesome5 name="times" size={22} color={Colors[colorScheme].text} />
+            <FontAwesome5
+              name="times"
+              size={22}
+              color={Colors[colorScheme].text}
+            />
           </TouchableOpacity>
         </View>
-        
-        <ScrollView 
+
+        <ScrollView
           style={styles.content}
           showsVerticalScrollIndicator={false}
         >
           <ProfileSection toLogin={toLogin} />
           <View style={styles.divider} />
-          <RoutingPreferences 
+          <RoutingPreferences
             preferences={preferences}
             onToggle={onTogglePreference}
           />
@@ -150,48 +154,48 @@ const SideMenu: React.FC<SideMenuProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 1000,
+    ...StyleSheet.absoluteFillObject, // Fill the entire screen
+    zIndex: 1000, // Ensure it's on top
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'black',
+    backgroundColor: "black", // Dark overlay color
   },
   menu: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     width: MENU_WIDTH,
-    height: '100%',
-    shadowColor: '#000',
+    height: "100%", // Full height
+    shadowColor: "#000",
     shadowOffset: { width: 2, height: 0 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
-    elevation: 10,
+    elevation: 10, // Android shadow
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: "#e0e0e0", // Light divider
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   closeButton: {
-    padding: 8,
+    padding: 8, // Make tap area larger
   },
   content: {
-    flex: 1,
+    flex: 1, // Ensure ScrollView takes available space
   },
   divider: {
     height: 1,
-    backgroundColor: '#e0e0e0',
-    marginHorizontal: 16,
+    backgroundColor: "#e0e0e0",
+    marginHorizontal: 16, // Indent divider slightly
   },
 });
 
