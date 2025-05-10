@@ -20,8 +20,7 @@ import Mapbox, {
   MapView,
   Camera,
   LocationPuck,
-  PointAnnotation,
-  UserTrackingMode,
+  UserTrackingMode, 
 } from "@rnmapbox/maps";
 import { usePathname, useRouter } from "expo-router";
 import { useQRCode } from "@/providers/QRCodeProvider";
@@ -32,7 +31,6 @@ import locationTracker from "@/utils/locationTracker";
 import ttsManager from "@/utils/ttsManager";
 import { getExcludesFromPreferences } from "@/utils/routeUtils";
 
-import SimplifiedAlertPin from "@/components/mapbox/SimplifiedAlertPin";
 import SearchAndRouteControl from "@/components/mapbox/SearchAndRouteControl";
 import NavigationInterface from "@/components/mapbox/NavigationInterface";
 import PinInfoModal from "@/components/mapbox/PinInfoModal";
@@ -50,6 +48,9 @@ import ReportAlertModal from "@/components/mapbox/ReportAlertModal";
 import LoginRequiredModal from "@/components/mapbox/LoginRequiredModal";
 import { RoutingPreference } from "@/components/settings/RoutingPreferences";
 import TrafficStatusIndicator from "@/components/mapbox/TrafficStatusIndicator";
+
+// Import the new layer component
+import MapboxAlertPinsLayer from "@/components/mapbox/MapboxAlertPinsLayer";
 
 Mapbox.setAccessToken(Config.MAPBOX_PK as string);
 
@@ -96,7 +97,7 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
       return {
         ...state,
         destination: action.payload,
-        uiMode: action.payload ? "route-selection" : "search", // Stay in search/route-selection
+        uiMode: action.payload ? "route-selection" : "search",
         isInitialRouteCalculated: false,
       };
     case "START_NAVIGATION_UI":
@@ -109,7 +110,7 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
         isInitialRouteCalculated: false,
       };
     case "OPEN_SIDE_MENU":
-      return { ...state, isSideMenuOpen: true, uiMode: "map" }; // Ensure map mode when menu opens
+      return { ...state, isSideMenuOpen: true, uiMode: "map" };
     case "CLOSE_SIDE_MENU":
       return { ...state, isSideMenuOpen: false };
     case "SELECT_PIN":
@@ -130,6 +131,17 @@ const initialAppState: AppState = {
   isInitialRouteCalculated: false,
 };
 
+// Define CameraConfig state
+interface CameraConfig {
+  centerCoordinate?: [number, number];
+  zoomLevel: number;
+  animationMode: "flyTo" | "easeTo" | "linearTo" | "moveTo" | undefined;
+  animationDuration: number;
+  pitch?: number;
+  heading?: number;
+  isManuallyControlled?: boolean; // Flag to manage manual camera control vs. following user
+}
+
 const Map = () => {
   const router = useRouter();
   const pathname = usePathname();
@@ -144,6 +156,15 @@ const Map = () => {
     null
   );
   const [selectedRouteIdxState, setSelectedRouteIdxState] = useState(0);
+
+  // NEW: State for camera configuration
+  const [cameraConfig, setCameraConfig] = useState<CameraConfig>({
+    zoomLevel: 13, 
+    animationMode: "flyTo",
+    animationDuration: 1200,
+    isManuallyControlled: false,
+    // centerCoordinate will be set by userLocation or other interactions
+  });
 
   const [preferences, setPreferences] = useState<RoutingPreference[]>([
     {
@@ -171,7 +192,7 @@ const Map = () => {
     loading: routeHookLoading,
     error: routeHookError,
     isNavigating,
-    liveUserLocation,
+    liveUserLocation, // This one from useRoute might be slightly different from userLocation
     traveledCoords,
     displayedInstruction,
     distanceToNextManeuver,
@@ -212,6 +233,27 @@ const Map = () => {
     }
   }, [userData?.preferences, setRouteExcludes]);
 
+  // Effect to set initial camera center when userLocation is available and not manually controlled
+  useEffect(() => {
+    if (
+      userLocation &&
+      !cameraConfig.centerCoordinate &&
+      !cameraConfig.isManuallyControlled &&
+      !isNavigating
+    ) {
+      setCameraConfig((prev) => ({
+        ...prev,
+        centerCoordinate: userLocation,
+        zoomLevel: 15,
+      }));
+    }
+  }, [
+    userLocation,
+    cameraConfig.centerCoordinate,
+    cameraConfig.isManuallyControlled,
+    isNavigating,
+  ]);
+
   useEffect(() => {
     const initializeAppServices = async () => {
       try {
@@ -219,18 +261,26 @@ const Map = () => {
         const trackingStarted = await locationTracker.startTracking();
         if (!trackingStarted)
           Alert.alert("Location Required", "Please enable location access.");
-        locationTracker.on("locationUpdate", (loc) => setUserLocation(loc));
+
+        const onLocationUpdate = (loc: [number, number]) => {
+          setUserLocation(loc); // Update local userLocation state
+        };
+        locationTracker.on("locationUpdate", onLocationUpdate);
+
         const initialLoc = await locationTracker.getLastKnownLocation();
         if (initialLoc) setUserLocation(initialLoc);
+
         dispatch({ type: "INITIALIZE_COMPLETE" });
       } catch (error) {
         dispatch({ type: "INITIALIZE_COMPLETE" });
         Alert.alert("Error", "Failed to initialize app services.");
+        console.error("Init error:", error);
       }
     };
     initializeAppServices();
     return () => {
-      locationTracker.cleanup();
+      locationTracker.removeAllListeners("locationUpdate"); // Clean up specific listener
+      locationTracker.cleanup(); // General cleanup
       ttsManager.cleanup();
     };
   }, []);
@@ -260,6 +310,46 @@ const Map = () => {
     state.isInitialRouteCalculated,
   ]);
 
+  useEffect(() => {
+    if (qrData && !qrDataProcessed.current && userLocation) {
+      qrDataProcessed.current = true;
+      dispatch({ type: "SET_INITIAL_ROUTE_CALCULATED", payload: false });
+      setSelectedRoute(null);
+      setAlternateRoutes([]);
+      if (qrData.toCoords) {
+        dispatch({ type: "SHOW_SEARCH" });
+        dispatch({ type: "SET_DESTINATION", payload: qrData.toCoords });
+        const qrExcludes =
+          qrData.excludes && qrData.excludes.length > 0
+            ? qrData.excludes
+            : undefined;
+        setRouteExcludes(qrExcludes);
+        calculateRoutes(userLocation, qrData.toCoords, qrExcludes);
+        // Center camera on QR destination for planning
+        setCameraConfig((prev) => ({
+          ...prev,
+          centerCoordinate: qrData.toCoords,
+          zoomLevel: 14, // Or an appropriate zoom level
+          isManuallyControlled: true,
+        }));
+      } else Alert.alert("QR Code Error", "Invalid route data.");
+      setTimeout(() => {
+        setQRData(null);
+        qrDataProcessed.current = false;
+        // Reset manual control after processing QR
+        setCameraConfig((prev) => ({ ...prev, isManuallyControlled: false }));
+      }, 1500);
+    }
+  }, [
+    qrData,
+    userLocation,
+    calculateRoutes,
+    setQRData,
+    setSelectedRoute,
+    setAlternateRoutes,
+    setRouteExcludes,
+  ]);
+
   const globalTrafficLevel = useMemo(
     () =>
       selectedRoute && routeFeatures && routeFeatures["primary"]
@@ -273,53 +363,27 @@ const Map = () => {
       userLocation
         ? { latitude: userLocation[1], longitude: userLocation[0] }
         : null,
-    [userLocation, isSignedIn]
+    [userLocation] // Removed isSignedIn, as pin fetching might not depend on it or is handled within useAlertPins
   );
 
   const { pins: alertPinsFromHook } = useAlertPins(alertPinsLocation);
-
-  useEffect(() => {
-    if (qrData && !qrDataProcessed.current && userLocation) {
-      qrDataProcessed.current = true;
-      dispatch({ type: "SET_INITIAL_ROUTE_CALCULATED", payload: false });
-      setSelectedRoute(null);
-      setAlternateRoutes([]);
-      if (qrData.toCoords) {
-        // When QR code provides destination, show search/route-selection UI
-        dispatch({ type: "SHOW_SEARCH" }); // Or directly to route-selection if preferred
-        dispatch({ type: "SET_DESTINATION", payload: qrData.toCoords });
-        const qrExcludes =
-          qrData.excludes && qrData.excludes.length > 0
-            ? qrData.excludes
-            : undefined;
-        setRouteExcludes(qrExcludes);
-        calculateRoutes(userLocation, qrData.toCoords, qrExcludes);
-      } else Alert.alert("QR Code Error", "Invalid route data.");
-      setTimeout(() => {
-        setQRData(null);
-        qrDataProcessed.current = false;
-      }, 1500);
-    }
-  }, [
-    qrData,
-    userLocation,
-    calculateRoutes,
-    setQRData,
-    setSelectedRoute,
-    setAlternateRoutes,
-    setRouteExcludes,
-  ]);
 
   const handleMapPress = useCallback(() => {
     if (state.selectedPin !== null) {
       dispatch({ type: "SELECT_PIN", payload: null });
       return;
     }
-  }, [state.selectedPin]);
+    // If user taps map, allow followUserLocation to resume if it was manually overridden
+    if (cameraConfig.isManuallyControlled && !isNavigating) {
+      setCameraConfig((prev) => ({ ...prev, isManuallyControlled: false }));
+    }
+  }, [state.selectedPin, cameraConfig.isManuallyControlled, isNavigating]);
 
+  // ... (handleToggleSearchUI, handleToggleSideMenu, handleQRScan, etc. remain the same)
   const handleToggleSearchUI = useCallback(() => {
     if (state.uiMode === "map" && !state.isSideMenuOpen) {
       dispatch({ type: "SHOW_SEARCH" });
+      setCameraConfig((prev) => ({ ...prev, isManuallyControlled: true })); // Stop following when search opens
     } else if (
       state.uiMode === "search" ||
       state.uiMode === "route-selection"
@@ -328,10 +392,11 @@ const Map = () => {
       setSelectedRoute(null);
       setAlternateRoutes([]);
       setSelectedRouteIdxState(0);
+      setCameraConfig((prev) => ({ ...prev, isManuallyControlled: false })); // Resume following if applicable
     } else if (state.isSideMenuOpen) {
-      // If menu is open and search is tapped, close menu and open search
       dispatch({ type: "CLOSE_SIDE_MENU" });
       dispatch({ type: "SHOW_SEARCH" });
+      setCameraConfig((prev) => ({ ...prev, isManuallyControlled: true }));
     }
   }, [
     state.uiMode,
@@ -344,7 +409,6 @@ const Map = () => {
     if (state.isSideMenuOpen) {
       dispatch({ type: "CLOSE_SIDE_MENU" });
     } else {
-      // If search is open, close it and then open the menu
       if (state.uiMode === "search" || state.uiMode === "route-selection") {
         dispatch({ type: "HIDE_SEARCH" });
         setSelectedRoute(null);
@@ -352,6 +416,7 @@ const Map = () => {
         setSelectedRouteIdxState(0);
       }
       dispatch({ type: "OPEN_SIDE_MENU" });
+      setCameraConfig((prev) => ({ ...prev, isManuallyControlled: true })); // Stop following when menu opens
     }
   }, [
     state.isSideMenuOpen,
@@ -379,13 +444,13 @@ const Map = () => {
   );
   const navigateToLogin = useCallback(() => {
     setLoginPromptVisible(false);
-    dispatch({ type: "CLOSE_SIDE_MENU" }); // Ensure menu is closed before navigating
+    dispatch({ type: "CLOSE_SIDE_MENU" });
     router.push("/auth");
   }, [router]);
 
-  const handleSelectPin = useCallback(
+  // MODIFIED: This is the callback for MapboxAlertPinsLayer when an INDIVIDUAL pin is selected
+  const handlePinSelectionForLayer = useCallback(
     (pin: PinRead) => {
-      // If search or side menu is open, close them before selecting pin
       if (state.uiMode === "search" || state.uiMode === "route-selection") {
         dispatch({ type: "HIDE_SEARCH" });
         setSelectedRoute(null);
@@ -396,14 +461,49 @@ const Map = () => {
         dispatch({ type: "CLOSE_SIDE_MENU" });
       }
       dispatch({ type: "SELECT_PIN", payload: pin });
+      // Optionally, center map on selected pin
+      setCameraConfig((prev) => ({
+        ...prev,
+        centerCoordinate: [pin.longitude, pin.latitude],
+        // zoomLevel: Math.max(prev.zoomLevel, 15), // Zoom in if not already zoomed
+        isManuallyControlled: true,
+      }));
     },
     [state.uiMode, state.isSideMenuOpen, setSelectedRoute, setAlternateRoutes]
   );
 
+  // NEW: Handler for when a CLUSTER is pressed (called by MapboxAlertPinsLayer)
+  const handleMapClusterPress = useCallback(
+    async (coordinates: [number, number]) => {
+      let currentZoom = cameraConfig.zoomLevel;
+      if (mapRef.current) {
+        try {
+          currentZoom = await mapRef.current.getZoom();
+        } catch (error) {
+          console.warn("Could not get current zoom from mapRef:", error);
+        }
+      }
+      setCameraConfig({
+        // Update cameraConfig to trigger re-render of <Camera />
+        ...cameraConfig, // spread previous config to keep animationMode etc.
+        centerCoordinate: coordinates,
+        zoomLevel: Math.min(currentZoom + 2, 20), // Zoom in by 2 levels, max 20
+        animationMode: "flyTo",
+        animationDuration: 1200,
+        isManuallyControlled: true, // Important: Set to true to override followUserLocation temporarily
+      });
+      // After animation, you might want to reset isManuallyControlled if appropriate for your UX
+      setTimeout(() => {
+        setCameraConfig((prev) => ({ ...prev, isManuallyControlled: false }));
+      }, 1300); // Slightly longer than animation duration
+    },
+    [mapRef, cameraConfig]
+  ); // Include cameraConfig to get current zoom and other settings
+
   const handleDestinationSelected = useCallback(
     (coords: [number, number]) => {
       dispatch({ type: "SET_DESTINATION", payload: coords });
-      setSelectedRouteIdxState(0); // Reset for new destination
+      setSelectedRouteIdxState(0);
       if (userLocation) {
         const currentExcludes = getExcludesFromPreferences(
           userData?.preferences
@@ -418,27 +518,41 @@ const Map = () => {
           "Location Needed",
           "Waiting for location to calculate routes."
         );
+      // Center camera on destination for planning
+      setCameraConfig((prev) => ({
+        ...prev,
+        centerCoordinate: coords,
+        zoomLevel: 14, // Or an appropriate zoom level
+        isManuallyControlled: true,
+      }));
     },
     [userLocation, calculateRoutes, userData?.preferences]
   );
 
-  // This is called by SearchAndRouteControl's cancel/back button
   const handleCancelSearchUIMode = useCallback(() => {
     dispatch({ type: "HIDE_SEARCH" });
     setSelectedRoute(null);
     setAlternateRoutes([]);
     setSelectedRouteIdxState(0);
+    setCameraConfig((prev) => ({ ...prev, isManuallyControlled: false })); // Resume following if applicable
   }, [setSelectedRoute, setAlternateRoutes]);
 
   const handleUIRouteSelected = useCallback(
     (route: Route) => {
-      // This is actually for choosing between primary/alternate
-      // The `index` parameter from SearchAndRouteControl determines which route.
-      // Here we assume `route` is the one already identified as chosen by the UI.
-      // `chooseRoute` updates `selectedRoute` and `alternateRoutes` based on what's passed.
-      chooseRoute(route, selectedRoute); // Pass current selectedRoute for comparison
+      chooseRoute(route, selectedRoute);
+      // Optionally, adjust camera to fit the newly selected route
+      if (route.geometry.coordinates.length > 0) {
+        // This is a simplified fit, Mapbox SDK might have better ways to fit bounds
+        // For now, just center on the start of the route as an example
+        setCameraConfig((prev) => ({
+          ...prev,
+          centerCoordinate: route.geometry.coordinates[0] as [number, number],
+          // zoomLevel: 13, // Or calculate bounds and fit
+          isManuallyControlled: true,
+        }));
+      }
     },
-    [chooseRoute, selectedRoute] // `selectedRoute` is needed for `previousRoute` in `chooseRoute`
+    [chooseRoute, selectedRoute]
   );
 
   const handleUIStartNavigation = useCallback(async () => {
@@ -446,16 +560,18 @@ const Map = () => {
       Alert.alert("Error", "No route selected.");
       return;
     }
-    await startNavigation(); // This will set isNavigating, which triggers START_NAVIGATION_UI
+    await startNavigation(); // This sets isNavigating, which controls uiMode and Camera's followUserLocation
+    setCameraConfig((prev) => ({ ...prev, isManuallyControlled: false })); // Ensure follow mode is active
   }, [selectedRoute, startNavigation]);
 
   const handleUICancelNavigation = useCallback(() => {
-    stopNavigation(); // This will set isNavigating to false, triggering STOP_NAVIGATION_UI
+    stopNavigation();
     setSelectedRoute(null);
     setAlternateRoutes([]);
     setSelectedRouteIdxState(0);
-    dispatch({ type: "HIDE_SEARCH" }); // Go back to map mode after cancelling navigation
+    dispatch({ type: "HIDE_SEARCH" });
     qrDataProcessed.current = false;
+    setCameraConfig((prev) => ({ ...prev, isManuallyControlled: false })); // Resume default camera behavior
   }, [stopNavigation, setSelectedRoute, setAlternateRoutes]);
 
   const handleTogglePreference = useCallback(
@@ -464,21 +580,14 @@ const Map = () => {
         p.id === id ? { ...p, enabled: value } : p
       );
       setPreferences(newPreferences);
-
-      // Create preference object to match backend format
       const newPrefsObj = newPreferences.reduce((acc, p) => {
         (acc as any)[p.id] = p.enabled;
         return acc;
       }, {} as UserPreferences);
-
-      // Update user preferences via API if signed in
-      if (isSignedIn) {
+      if (isSignedIn)
         updatePreferences(newPrefsObj).catch((err) =>
-          console.error("Failed to update user preferences on backend:", err)
+          console.error("Pref update fail:", err)
         );
-      }
-
-      // Also update local route excludes for immediate use
       const newExcludes = getExcludesFromPreferences(newPrefsObj);
       setRouteExcludes(newExcludes.length > 0 ? newExcludes : undefined);
     },
@@ -495,7 +604,6 @@ const Map = () => {
     (routeHookLoading && !state.isInitialRouteCalculated && !isRerouting);
 
   if (state.isInitializing && !userLocation) {
-    // Show basic loading only if no location yet
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#4285F4" />
@@ -520,38 +628,38 @@ const Map = () => {
             state.uiMode === "navigation"
               ? Platform.OS === "ios"
                 ? 160
-                : 130 // Adjust as needed for NavigationInterface height
+                : 130
               : 8,
           right: 8,
         }}
-        onPress={handleMapPress} // Only deselects pins now
+        onPress={handleMapPress}
       >
         <Camera
-          animationMode="flyTo"
-          animationDuration={1500}
+          // Bind camera props to cameraConfig state
+          centerCoordinate={cameraConfig.centerCoordinate}
+          zoomLevel={cameraConfig.zoomLevel}
+          animationMode={cameraConfig.animationMode}
+          animationDuration={cameraConfig.animationDuration}
+          pitch={cameraConfig.pitch}
+          heading={cameraConfig.heading}
+          // Control followUserLocation with isManuallyControlled flag
           followUserLocation={
-            isNavigating || (state.uiMode === "map" && !state.destination)
-          } // Follow when navigating OR in map mode without a destination set
+            !cameraConfig.isManuallyControlled &&
+            (isNavigating ||
+              (state.uiMode === "map" &&
+                !state.destination &&
+                !state.selectedPin))
+          }
           followUserMode={
             isNavigating
               ? UserTrackingMode.FollowWithCourse
               : UserTrackingMode.Follow
           }
-          followZoomLevel={isNavigating ? 17 : 15}
-          // Center on user location if not navigating and no specific destination is focused
-          centerCoordinate={
-            !isNavigating && liveUserLocation && !state.destination
-              ? liveUserLocation
-              : undefined
-          }
-          zoomLevel={
-            !isNavigating && liveUserLocation && !state.destination
-              ? 15
-              : undefined
-          }
+          followZoomLevel={isNavigating ? 17 : cameraConfig.zoomLevel} // use navigation zoom or current
+          followPitch={isNavigating ? 45 : 0} // pitch for navigation
         />
 
-        {/* Alternate Routes Rendering (only when route selection is active) */}
+        {/* Alternate Routes Rendering */}
         {state.uiMode === "route-selection" &&
           alternateRoutes &&
           alternateRoutes.map((altRoute, index) => (
@@ -564,7 +672,7 @@ const Map = () => {
                 id={`altLine-${index}`}
                 style={{
                   lineColor:
-                    selectedRouteIdxState === index + 1 ? "#2563eb" : "grey", // Highlight if selected
+                    selectedRouteIdxState === index + 1 ? "#2563eb" : "grey",
                   lineWidth: selectedRouteIdxState === index + 1 ? 6 : 4,
                   lineOpacity: 0.6,
                 }}
@@ -579,27 +687,23 @@ const Map = () => {
               id="routeFill"
               style={{
                 lineColor: isNavigating
-                  ? "#60a5fa" // Navigation active color
+                  ? "#60a5fa"
                   : state.uiMode === "route-selection" &&
                     selectedRouteIdxState === 0
-                  ? "#3b82f6" // Primary selected in route-selection
+                  ? "#3b82f6"
                   : state.uiMode === "route-selection"
-                  ? "grey" // Not selected in route-selection (should be covered by alternate logic)
-                  : "#3b82f6", // Default display on map before navigation
+                  ? "grey"
+                  : "#3b82f6",
                 lineWidth: isNavigating ? 7 : 6,
                 lineCap: "round",
                 lineJoin: "round",
-                lineOpacity: isNavigating
-                  ? 0.85
-                  : state.uiMode === "route-selection"
-                  ? 0.75
-                  : 0.75,
+                lineOpacity: isNavigating ? 0.85 : 0.75,
               }}
             />
           </Mapbox.ShapeSource>
         )}
 
-        {/* Traveled Path during Navigation */}
+        {/* Traveled Path */}
         {isNavigating && traveledCoords && traveledCoords.length > 1 && (
           <Mapbox.ShapeSource
             id="traveledRoute"
@@ -619,46 +723,41 @@ const Map = () => {
           </Mapbox.ShapeSource>
         )}
 
-        {/* Destination Marker (only when route selection is active and not navigating) */}
+        {/* Destination Marker */}
         {state.destination &&
           state.uiMode === "route-selection" &&
           !isNavigating && (
-            <PointAnnotation
+            <Mapbox.PointAnnotation // Use Mapbox.PointAnnotation
               id="destinationLocation"
               coordinate={state.destination}
             >
               <View style={styles.destinationMarker}>
                 <View style={styles.destinationMarkerInner} />
               </View>
-            </PointAnnotation>
+            </Mapbox.PointAnnotation>
           )}
 
-        {/* Alert Pins */}
-        {alertPinsFromHook.map((pin) => (
-          <PointAnnotation
-            key={`pin-${pin.id}`}
-            id={`pin-${pin.id}`}
-            coordinate={[pin.longitude, pin.latitude]}
-            onSelected={() => handleSelectPin(pin)}
-            onDeselected={() => dispatch({ type: "SELECT_PIN", payload: null })}
-          >
-            <SimplifiedAlertPin type={pin.type} />
-          </PointAnnotation>
-        ))}
-
+        {/* Location Puck */}
         <LocationPuck
           visible={true}
           pulsing={
             isNavigating
               ? { isEnabled: true, color: "rgba(0,122,255,0.3)" }
-              : { isEnabled: true } // Pulse always when puck is visible
+              : { isEnabled: true }
           }
           puckBearingEnabled={true}
-          puckBearing="course" // Bearing based on device course
+          puckBearing="course"
+        />
+
+        {/* NEW: Use the MapboxAlertPinsLayer component */}
+        <MapboxAlertPinsLayer
+          pins={alertPinsFromHook}
+          onPinSelect={handlePinSelectionForLayer}
+          onClusterPress={handleMapClusterPress} // Pass the new handler
         />
       </MapView>
 
-      {/* UI Elements absolutely positioned over the map */}
+      {/* UI Elements */}
       <HamburgerMenuButton onPress={handleToggleSideMenu} />
       <IncidentReportButton
         onPress={handleOpenReportModal}
@@ -667,40 +766,36 @@ const Map = () => {
       />
       <QRCodeButton onPress={handleQRScan} />
 
-      {/* Search FAB - only visible in 'map' mode and when not navigating and side menu is closed */}
       {!isNavigating && state.uiMode === "map" && !state.isSideMenuOpen && (
         <FloatingActionButton
           iconName="search-location"
           onPress={handleToggleSearchUI}
-          visible={true} // Visibility now controlled by the conditional rendering wrapper
+          visible={true}
           backgroundColor="#4285F4"
           size="medium"
           style={{ bottom: 20, left: 20 }}
         />
       )}
 
-      {/* Traffic Status Indicator - visible when not navigating and traffic data available */}
       {globalTrafficLevel !== "unknown" &&
         !isNavigating &&
         state.uiMode === "map" && (
           <TrafficStatusIndicator
             trafficLevel={globalTrafficLevel}
-            compact={false} // Or true, depending on desired look
             style={{ position: "absolute", top: 50, right: 120, zIndex: 10 }}
           />
         )}
 
-      {/* Search and Route Control Panel */}
       <SearchAndRouteControl
         userLocation={userLocation}
         onDestinationSelected={handleDestinationSelected}
         onStartNavigation={handleUIStartNavigation}
-        onCancelSearch={handleCancelSearchUIMode} // Renamed for clarity
+        onCancelSearch={handleCancelSearchUIMode}
         onRouteSelected={handleUIRouteSelected}
         calculateRoutes={calculateRoutes}
         loading={
           routeHookLoading && !isRerouting && !state.isInitialRouteCalculated
-        } // Show loading for initial calculation
+        }
         visible={
           state.uiMode === "search" || state.uiMode === "route-selection"
         }
@@ -711,7 +806,6 @@ const Map = () => {
         setSelectedRouteIndex={setSelectedRouteIdxState}
       />
 
-      {/* Navigation Interface */}
       {isNavigating && selectedRoute && (
         <NavigationInterface
           route={selectedRoute}
@@ -728,14 +822,11 @@ const Map = () => {
       )}
 
       {/* Modals */}
-      {reportModalVisible && ( // Render conditionally to ensure it's not always in the tree
+      {reportModalVisible && (
         <ReportAlertModal
           userLocation={
             userLocation
-              ? {
-                  latitude: userLocation[1],
-                  longitude: userLocation[0],
-                }
+              ? { latitude: userLocation[1], longitude: userLocation[0] }
               : null
           }
           isVisible={reportModalVisible}
@@ -749,7 +840,7 @@ const Map = () => {
       />
       <SideMenu
         isVisible={state.isSideMenuOpen}
-        onClose={handleToggleSideMenu} // SideMenu's own close mechanism calls this
+        onClose={handleToggleSideMenu}
         toLogin={navigateToLogin}
         preferences={preferences}
         onTogglePreference={handleTogglePreference}
@@ -759,22 +850,17 @@ const Map = () => {
         onClose={() => dispatch({ type: "SELECT_PIN", payload: null })}
       />
 
-      {/* Error Display */}
       {routeHookError && (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{routeHookError}</Text>
         </View>
       )}
-
-      {/* Rerouting Indicator (non-blocking) */}
       {isRerouting && !showFullScreenLoadingOverlay && (
         <View style={styles.reroutingIndicator}>
           <ActivityIndicator size="small" color="#007AFF" />
           <Text style={styles.reroutingText}>Recalcul en cours...</Text>
         </View>
       )}
-
-      {/* Full Screen Loading Overlay (blocking) */}
       {showFullScreenLoadingOverlay && (
         <View style={styles.fullScreenLoading}>
           <ActivityIndicator size="large" color="#FFFFFF" />
@@ -796,14 +882,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F5FCFF", // Or your app's background
+    backgroundColor: "#F5FCFF",
   },
   loadingText: { marginTop: 12, fontSize: 16, color: "#555" },
   destinationMarker: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "rgba(59, 130, 246, 0.3)", // Light blue halo
+    backgroundColor: "rgba(59, 130, 246, 0.3)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -811,7 +897,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: "#3b82f6", // Solid blue core
+    backgroundColor: "#3b82f6",
     borderWidth: 2,
     borderColor: "white",
   },
@@ -820,11 +906,11 @@ const styles = StyleSheet.create({
     top: Platform.OS === "ios" ? 60 : 20,
     left: 20,
     right: 20,
-    backgroundColor: "rgba(220, 53, 69, 0.9)", // Red for error
+    backgroundColor: "rgba(220, 53, 69, 0.9)",
     padding: 12,
     borderRadius: 8,
     alignItems: "center",
-    zIndex: 2000, // High zIndex to show over other UI
+    zIndex: 2000,
   },
   errorText: { color: "white", fontWeight: "bold", textAlign: "center" },
   fullScreenLoading: {
@@ -836,7 +922,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 9999, // Highest zIndex
+    zIndex: 9999,
   },
   fullScreenLoadingText: {
     color: "#FFFFFF",
@@ -846,12 +932,12 @@ const styles = StyleSheet.create({
   },
   reroutingIndicator: {
     position: "absolute",
-    top: Platform.OS === "ios" ? 60 : 20, // Below status bar
+    top: Platform.OS === "ios" ? 60 : 20,
     alignSelf: "center",
     backgroundColor: "rgba(255, 255, 255, 0.9)",
     paddingHorizontal: 15,
     paddingVertical: 8,
-    borderRadius: 20, // Pill shape
+    borderRadius: 20,
     flexDirection: "row",
     alignItems: "center",
     shadowColor: "#000",
@@ -859,9 +945,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 2,
     elevation: 3,
-    zIndex: 1000, // Above map, below modals
+    zIndex: 1000,
   },
-  reroutingText: { marginLeft: 10, fontSize: 14, color: "#007AFF" }, // iOS blue
+  reroutingText: { marginLeft: 10, fontSize: 14, color: "#007AFF" },
 });
 
 export default Map;
