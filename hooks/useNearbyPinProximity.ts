@@ -6,7 +6,7 @@ import { calculateDistanceInMeters } from '@/hooks/routing/utils/routeAnalysis';
 
 // --- Constants for this hook ---
 const PIN_GENERAL_PROXIMITY_THRESHOLD_METERS = 50;
-const PIN_GLOBAL_PROMPT_COOLDOWN_MS = 5 * 60 * 100; // 5 minutes
+const PIN_GLOBAL_PROMPT_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
 interface UseNearbyPinProximityResult {
   pinForConfirmationAttempt: PinRead | null; // The pin that meets criteria for a prompt

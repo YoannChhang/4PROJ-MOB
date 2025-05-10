@@ -375,7 +375,7 @@ const Map = () => {
             isStillThere ? "Still there" : "Not there"
           }`
         );
-        if (!isStillThere) {
+        if (!isStillThere && isSignedIn) {
           try {
             await removeAlertPin(pinThatWasConfirmed.id);
             console.log(
@@ -400,7 +400,7 @@ const Map = () => {
         );
       }
     },
-    [pinForConfirmationAttempt, removeAlertPin, confirmPinHandled] // Add confirmPinHandled
+    [pinForConfirmationAttempt, removeAlertPin, confirmPinHandled, isSignedIn]
   );
 
   const handleMapPress = useCallback(() => {
