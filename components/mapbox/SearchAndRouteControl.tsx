@@ -254,6 +254,7 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
     }
 
     // Start navigation
+    setSearchMode(true);
     onStartNavigation();
   }, [onStartNavigation]);
 

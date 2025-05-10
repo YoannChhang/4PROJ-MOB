@@ -383,6 +383,7 @@ const Map = () => {
     setSelectedRoute(null);
     setAlternateRoutes([]);
     setSelectedRouteIdxState(0);
+    dispatch({ type: "HIDE_SEARCH" })
     qrDataProcessed.current = false;
   }, [stopNavigation, setSelectedRoute, setAlternateRoutes]);
 
