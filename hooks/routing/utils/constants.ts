@@ -23,3 +23,5 @@ export const DEFAULT_NAVIGATION_LANGUAGE = "fr-FR";
 
 // Default TTS rate
 export const DEFAULT_TTS_RATE = 0.5;
+
+export const ARRIVAL_THRESHOLD_METERS = 20;

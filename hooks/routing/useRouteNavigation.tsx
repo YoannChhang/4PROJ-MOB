@@ -1,7 +1,6 @@
 // hooks/routing/useRouteNavigation.tsx
 import { useState, useEffect, useRef, useCallback } from "react";
 import * as Location from "expo-location";
-// import * as turf from "@turf/turf"; // Only specific turf functions are used from routeAnalysis
 import ttsManager from "@/utils/ttsManager";
 import { Route, Step, VoiceInstruction } from "@/types/mapbox";
 import { Coordinate } from "./utils/types";
@@ -9,17 +8,21 @@ import {
   findNearestPointOnRoute,
   calculateDistanceInMeters,
   hasArrivedAtDestination,
-  getSlicedRouteGeometry, // <<< IMPORTED THE HELPER
+  getSlicedRouteGeometry,
 } from "./utils/routeAnalysis";
 import {
   OFF_ROUTE_THRESHOLD,
   OFF_ROUTE_CONFIRMATION_COUNT,
+  ARRIVAL_THRESHOLD_METERS,
+  // ARRIVAL_THRESHOLD_METERS, // Consider adding this to constants if you want to configure it
 } from "./utils/constants";
 
 interface UseRouteNavigationOptions {
   onOffRoute?: (userLocation: Coordinate) => void;
   onArrive?: () => void;
 }
+
+
 
 export const useRouteNavigation = (
   selectedRoute: Route | null,
@@ -31,7 +34,7 @@ export const useRouteNavigation = (
   const [liveUserLocation, setLiveUserLocation] = useState<Coordinate | null>(
     null
   );
-  const [traveledCoords, setTraveledCoords] = useState<Coordinate[]>([]); // Will store the SNAPPED path
+  const [traveledCoords, setTraveledCoords] = useState<Coordinate[]>([]);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [displayedInstruction, setDisplayedInstruction] = useState<string>("");
   const [distanceToNextManeuver, setDistanceToNextManeuver] = useState<
@@ -60,34 +63,36 @@ export const useRouteNavigation = (
   );
 
   useEffect(() => {
-    if (isNavigating && selectedRoute && selectedRoute !== routeRef.current) {
-      console.log(
-        "useRouteNavigation: selectedRoute changed during navigation. Resetting state."
-      );
-      routeRef.current = selectedRoute;
-      setCurrentStepIndex(0);
-      setAnnouncementsMadeForStep(new Set());
-      offRouteCountRef.current = 0;
-      setTraveledCoords(
-        selectedRoute.geometry.coordinates.length > 0
-          ? [selectedRoute.geometry.coordinates[0] as Coordinate]
-          : []
-      );
-      setRemainingDistance(selectedRoute.distance);
-      setRemainingDuration(selectedRoute.duration);
-      setEstimatedArrival(new Date(Date.now() + selectedRoute.duration * 1000));
-      if (selectedRoute.legs[0]?.steps[0]) {
-        let instructionToSpeakAndDisplay =
-          selectedRoute.legs[0].steps[0].maneuver.instruction;
-        const firstStepVIs = selectedRoute.legs[0].steps[0].voiceInstructions;
-        if (
-          firstStepVIs &&
-          firstStepVIs.length > 0 &&
-          firstStepVIs[0].distanceAlongGeometry === 0
-        ) {
-          instructionToSpeakAndDisplay = firstStepVIs[0].announcement;
+    if (isNavigating && selectedRoute) {
+      if (selectedRoute !== routeRef.current) {
+        routeRef.current = selectedRoute;
+        setCurrentStepIndex(0);
+        setAnnouncementsMadeForStep(new Set());
+        offRouteCountRef.current = 0;
+        setTraveledCoords(
+          selectedRoute.geometry.coordinates.length > 0
+            ? [selectedRoute.geometry.coordinates[0] as Coordinate]
+            : []
+        );
+        setRemainingDistance(selectedRoute.distance);
+        setRemainingDuration(selectedRoute.duration);
+        setEstimatedArrival(
+          new Date(Date.now() + selectedRoute.duration * 1000)
+        );
+
+        if (selectedRoute.legs[0]?.steps[0]) {
+          let instructionToSpeakAndDisplay =
+            selectedRoute.legs[0].steps[0].maneuver.instruction;
+          const firstStepVIs = selectedRoute.legs[0].steps[0].voiceInstructions;
+          if (
+            firstStepVIs &&
+            firstStepVIs.length > 0 &&
+            firstStepVIs[0].distanceAlongGeometry === 0
+          ) {
+            instructionToSpeakAndDisplay = firstStepVIs[0].announcement;
+          }
+          speakInstruction(instructionToSpeakAndDisplay, true);
         }
-        speakInstruction(instructionToSpeakAndDisplay, true);
       }
     } else if (!selectedRoute) {
       routeRef.current = null;
@@ -121,8 +126,8 @@ export const useRouteNavigation = (
         const announcementKey = `${currentStepIndex}-${vi.announcement}`;
         if (announcementsMadeForStep.has(announcementKey)) continue;
 
-        const ACTIVATION_BUFFER_METERS = 30; // Speak when this close to the VI's designated point
-        const VI_POINT_TOLERANCE_METERS = 10; // Allow speaking if slightly past the point
+        const ACTIVATION_BUFFER_METERS = 30;
+        const VI_POINT_TOLERANCE_METERS = 10;
 
         if (
           progressInCurrentStep >=
@@ -130,13 +135,6 @@ export const useRouteNavigation = (
           progressInCurrentStep <
             vi.distanceAlongGeometry + VI_POINT_TOLERANCE_METERS
         ) {
-          console.log(
-            `VI Activated: "${
-              vi.announcement
-            }". User at ${progressInCurrentStep.toFixed(
-              0
-            )}m in step. VI point at ${vi.distanceAlongGeometry.toFixed(0)}m.`
-          );
           speakInstruction(vi.announcement);
           setAnnouncementsMadeForStep((prev) =>
             new Set(prev).add(announcementKey)
@@ -151,7 +149,6 @@ export const useRouteNavigation = (
   const checkRouteProgress = useCallback(
     (userLoc: Coordinate) => {
       if (!selectedRoute || !isNavigating) {
-        // This case is handled by the useEffect watching liveUserLocation and isNavigating
         return;
       }
 
@@ -166,7 +163,7 @@ export const useRouteNavigation = (
           location: progressAlongEntireRouteMeters,
         } = findNearestPointOnRoute(selectedRoute, userLoc);
 
-        // Update traveledCoords with the SNAPPED path
+        // Update snapped traveled path
         if (progressAlongEntireRouteMeters >= 0) {
           const snappedTraveledPath = getSlicedRouteGeometry(
             selectedRoute,
@@ -175,7 +172,7 @@ export const useRouteNavigation = (
           if (snappedTraveledPath && snappedTraveledPath.length > 0) {
             setTraveledCoords(snappedTraveledPath);
           } else if (
-            progressAlongEntireRouteMeters === 0 &&
+            progressAlongEntireRouteMeters <= 0.1 &&
             selectedRoute.geometry.coordinates.length > 0
           ) {
             setTraveledCoords([
@@ -190,6 +187,7 @@ export const useRouteNavigation = (
           );
         }
 
+        // 1. Check for off-route first
         if (distanceFromRoute > OFF_ROUTE_THRESHOLD) {
           offRouteCountRef.current += 1;
           if (offRouteCountRef.current >= (OFF_ROUTE_CONFIRMATION_COUNT || 3)) {
@@ -201,23 +199,55 @@ export const useRouteNavigation = (
           offRouteCountRef.current = 0;
         }
 
+        // 2. Check for ARRIVAL directly (high priority)
+        if (
+          hasArrivedAtDestination(
+            selectedRoute,
+            userLoc,
+            ARRIVAL_THRESHOLD_METERS
+          )
+        ) {
+          console.log(
+            `useRouteNavigation: Arrival detected within ${ARRIVAL_THRESHOLD_METERS}m! Stopping navigation.`
+          );
+          speakInstruction("Vous êtes arrivé à destination", true);
+          setIsNavigating(false);
+          if (onArrive) onArrive();
+          return; // Stop further processing if arrived
+        }
+
+        // 3. If not off-route and not arrived, proceed with step progression and TTS
         let newStepIndex = currentStepIndex;
-        let cumulativeDistanceAtStartOfNewStep = 0;
+        let cumulativeDistanceAtStartOfTargetStep = 0;
+        let foundStep = false;
         for (let i = 0; i < steps.length; i++) {
           const stepDistance = steps[i].distance;
           if (
             progressAlongEntireRouteMeters >=
-              cumulativeDistanceAtStartOfNewStep &&
+              cumulativeDistanceAtStartOfTargetStep &&
             progressAlongEntireRouteMeters <
-              cumulativeDistanceAtStartOfNewStep + stepDistance
+              cumulativeDistanceAtStartOfTargetStep + stepDistance
           ) {
             newStepIndex = i;
+            foundStep = true;
             break;
           }
-          cumulativeDistanceAtStartOfNewStep += stepDistance;
+          cumulativeDistanceAtStartOfTargetStep += stepDistance;
         }
-        if (newStepIndex === steps.length && steps.length > 0)
-          newStepIndex = steps.length - 1;
+
+        if (!foundStep && steps.length > 0) {
+          if (
+            progressAlongEntireRouteMeters >=
+            cumulativeDistanceAtStartOfTargetStep
+          ) {
+            newStepIndex = steps.length - 1;
+          } else {
+            newStepIndex = Math.max(
+              0,
+              Math.min(currentStepIndex, steps.length - 1)
+            );
+          }
+        }
 
         if (newStepIndex !== currentStepIndex) {
           setCurrentStepIndex(newStepIndex);
@@ -234,38 +264,30 @@ export const useRouteNavigation = (
           progressAlongEntireRouteMeters -
           finalCumulativeDistanceForActualCurrentStepStart;
 
+        // Set distance to next maneuver (for display) - This will be distance to actual next turn or to destination
         if (newStepIndex < steps.length - 1) {
           const nextManeuverLocation = steps[newStepIndex + 1].maneuver
             .location as Coordinate;
           setDistanceToNextManeuver(
             calculateDistanceInMeters(userLoc, nextManeuverLocation)
           );
-          checkAndAnnounceVoiceInstructions(
-            currentStepObject,
-            progressInActualCurrentStep
-          );
         } else {
+          // Last step, distance to maneuver is distance to destination
           const destinationCoords = selectedRoute.geometry.coordinates[
             selectedRoute.geometry.coordinates.length - 1
           ] as Coordinate;
-          const distToDest = calculateDistanceInMeters(
-            userLoc,
-            destinationCoords
+          setDistanceToNextManeuver(
+            calculateDistanceInMeters(userLoc, destinationCoords)
           );
-          setDistanceToNextManeuver(distToDest);
-
-          if (hasArrivedAtDestination(selectedRoute, userLoc)) {
-            speakInstruction("Vous êtes arrivé à destination", true);
-            setIsNavigating(false);
-            if (onArrive) onArrive();
-          } else {
-            checkAndAnnounceVoiceInstructions(
-              currentStepObject,
-              progressInActualCurrentStep
-            );
-          }
         }
 
+        // Announce voice instructions for the current step (leading up to the next maneuver or destination)
+        checkAndAnnounceVoiceInstructions(
+          currentStepObject,
+          progressInActualCurrentStep
+        );
+
+        // Update remaining distance and duration (these are overall route metrics)
         setRemainingDistance(
           Math.max(0, selectedRoute.distance - progressAlongEntireRouteMeters)
         );
@@ -273,12 +295,11 @@ export const useRouteNavigation = (
           selectedRoute.distance > 0
             ? progressAlongEntireRouteMeters / selectedRoute.distance
             : 0;
-        setRemainingDuration(selectedRoute.duration * (1 - progressPercentage));
+        const estimatedDurationRemaining =
+          selectedRoute.duration * (1 - progressPercentage);
+        setRemainingDuration(estimatedDurationRemaining);
         setEstimatedArrival(
-          new Date(
-            Date.now() +
-              selectedRoute.duration * (1 - progressPercentage) * 1000
-          )
+          new Date(Date.now() + estimatedDurationRemaining * 1000)
         );
       } catch (err) {
         console.error("Error checking route progress:", err);
@@ -333,11 +354,9 @@ export const useRouteNavigation = (
     if (!selectedRoute) return;
     try {
       await startLocationTracking();
-      // Initialize routeRef here before setting isNavigating if selectedRoute might not change
       routeRef.current = selectedRoute;
       setIsNavigating(true);
-      // The useEffect watching selectedRoute & isNavigating will handle initial setup,
-      // but let's ensure a clean slate here too.
+
       setCurrentStepIndex(0);
       setAnnouncementsMadeForStep(new Set());
       offRouteCountRef.current = 0;
@@ -375,7 +394,7 @@ export const useRouteNavigation = (
       locationSubscription.current = null;
     }
     ttsManager.stop();
-    setIsNavigating(false); // This will trigger the useEffect to clear traveledCoords
+    setIsNavigating(false);
     setDisplayedInstruction("");
   };
 
