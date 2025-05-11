@@ -67,6 +67,7 @@ export const useNearbyPinProximity = (
 
       console.log(`[useNearbyPinProximity] Selected pin ${selectedPinToAttempt.id} for confirmation attempt.`);
       setPinForConfirmationAttempt(selectedPinToAttempt);
+      lastGlobalPromptTimeRef.current = now;
       recentlyAttemptedPinIdsRef.current.add(selectedPinToAttempt.id); 
     }
   }, [userLocation, alertPins, isPinConfirmationModalVisible, pinForConfirmationAttempt]);

@@ -34,7 +34,6 @@ import { useRouter } from "expo-router";
 /**
  * UserContextType defines the shape of the authentication context.
  */
-interf
 interface UserContextType {
   userData: User;
   setUserData: React.Dispatch<React.SetStateAction<User>>;
