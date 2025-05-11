@@ -1,3 +1,9 @@
+/**
+ * RootLayout is the main app layout.
+ * It sets up theme providers, gesture handling, global context providers,
+ * splash screen management, and screen stack configuration.
+ */
+
 import {
   DarkTheme,
   DefaultTheme,
@@ -20,15 +26,18 @@ import { UserProvider } from "@/providers/UserProvider";
 import { QRCodeProvider } from "@/providers/QRCodeProvider";
 import { PinProvider } from "@/providers/PinProvider";
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
+// Prevent splash screen from auto-hiding before fonts are loaded
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+
+  // Load custom fonts
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
 
+  // Hide splash screen once fonts are loaded
   useEffect(() => {
     if (loaded) {
       SplashScreen.hideAsync();
@@ -36,7 +45,7 @@ export default function RootLayout() {
   }, [loaded]);
 
   if (!loaded) {
-    return null;
+    return null; // Wait for font loading before rendering
   }
 
   return (

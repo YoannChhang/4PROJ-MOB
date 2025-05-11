@@ -1,4 +1,8 @@
-// app/index.tsx
+/**
+ * Main screen logic of the SUPMAP application.
+ * Handles Mapbox display, routing, user location, preferences, QR code scanning,
+ * and dynamic UI transitions across search/navigation/map modes.
+ */
 import React, {
   useState,
   useEffect,
@@ -35,6 +39,9 @@ import { usePins } from "@/providers/PinProvider";
 
 Mapbox.setAccessToken(Config.MAPBOX_PK as string);
 
+/**
+ * AppState describes the global UI state of the main map screen.
+ */
 type AppState = {
   uiMode: "map" | "search" | "route-selection" | "navigation";
   destination: [number, number] | null;
@@ -56,6 +63,9 @@ type AppAction =
   | { type: "SELECT_PIN"; payload: PinRead | null }
   | { type: "SET_INITIAL_ROUTE_CALCULATED"; payload: boolean };
 
+  /**
+ * appReducer controls transitions between UI modes and internal flags.
+ */
 const appReducer = (state: AppState, action: AppAction): AppState => {
   switch (action.type) {
     case "INITIALIZE_COMPLETE":
@@ -112,6 +122,9 @@ const initialAppState: AppState = {
   isInitialRouteCalculated: false,
 };
 
+/**
+ * CameraConfig defines how the map camera should animate or respond to user actions.
+ */
 interface CameraConfig {
   centerCoordinate?: [number, number];
   zoomLevel: number;
@@ -124,6 +137,9 @@ interface CameraConfig {
 
 const PIN_PROMPT_TIMEOUT_MS = 20 * 1000;
 
+/**
+ * Map is the main component containing the full logic for rendering the map and coordinating all user interactions.
+ */
 const Map = () => {
   const router = useRouter();
   const mapRef = useRef<MapView>(null);
@@ -170,6 +186,7 @@ const Map = () => {
 
   const [forceRouteSelectionMode, setForceRouteSelectionMode] = useState(false);
 
+  
   const {
     selectedRoute,
     setSelectedRoute,
@@ -239,6 +256,9 @@ const Map = () => {
     }
   }, [userData?.preferences, setRouteExcludes]);
 
+   /**
+   * Syncs camera position to user's location after GPS lock.
+   */
   useEffect(() => {
     if (
       userLocation &&
@@ -259,6 +279,9 @@ const Map = () => {
     isNavigating,
   ]);
 
+  /**
+   * Called once at app start. Initializes TTS and location tracking.
+   */
   useEffect(() => {
     const initializeAppServices = async () => {
       try {
@@ -420,6 +443,10 @@ const Map = () => {
     }
   }, [pinForConfirmationAttempt, isPinConfirmationModalVisible]);
 
+   /**
+   * Called when the user validates the state of a pin after proximity prompt.
+   * Optionally deletes the pin if the user says it's no longer there.
+   */
   const handlePinConfirmationResponse = useCallback(
     async (isStillThere: boolean) => {
       const pinThatWasConfirmed = pinForConfirmationAttempt;

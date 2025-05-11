@@ -1,3 +1,9 @@
+/**
+ * QRScannerScreen allows users to scan a QR code that encodes a route.
+ * If valid, route data is parsed and stored in context, and the screen exits.
+ * Otherwise, an error is shown and the user is returned.
+ */
+
 import React from "react";
 import { StyleSheet, View, Alert } from "react-native";
 import { Stack, useRouter } from "expo-router";
@@ -12,7 +18,7 @@ export default function QRScannerScreen() {
   const handleCodeScanned = (data: string) => {
     console.log("QR code scanned:", data);
 
-    // Parse the URL from the QR code
+    // Attempt to extract route data from scanned QR content
     const parsedRoute = parseRouteUrl(data);
 
     if (parsedRoute.isValid && parsedRoute.toCoords) {
@@ -21,17 +27,15 @@ export default function QRScannerScreen() {
         excludes: parsedRoute.excludes,
       });
 
-      // Store the data in context instead of URL params
+      // Save route data in global context for use in main map screen
       setQRData({
         toCoords: parsedRoute.toCoords,
         excludes: parsedRoute.excludes,
         timestamp: Date.now(),
       });
 
-      // Simply go back without params
-      router.back();
+      router.back(); // Return to previous screen (map)
     } else {
-      // Show an alert for invalid QR codes
       Alert.alert(
         "Code QR invalide",
         "Le code QR scanné ne contient pas d'informations de navigation valides.",
@@ -41,7 +45,7 @@ export default function QRScannerScreen() {
   };
 
   const handleCancel = () => {
-    router.back();
+    router.back(); // User opted to cancel scanning
   };
 
   return (
@@ -52,7 +56,6 @@ export default function QRScannerScreen() {
           animation: "slide_from_bottom",
         }}
       />
-
       <QRCodeScanner
         onCodeScanned={handleCodeScanned}
         onCancel={handleCancel}

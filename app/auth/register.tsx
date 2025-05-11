@@ -1,3 +1,8 @@
+/**
+ * RegisterScreen component for user account creation.
+ * Displays a registration form and handles navigation to the login screen if needed.
+ */
+
 import React from "react";
 import { View, StyleSheet, Text } from "react-native";
 import RegisterForm from "@/components/auth/RegisterForm";
@@ -9,11 +14,12 @@ export default function RegisterScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Créer un compte</Text>
+      <Text style={styles.title}>Créer un compte</Text> {/* Title for registration screen */}
       <RegisterForm
         toLogin={() => {
+          // Prevent navigation if already on login screen
           if (pathname == "/auth") return;
-          router.push("/auth");
+          router.push("/auth"); // Navigate to login screen
         }}
       />
     </View>
