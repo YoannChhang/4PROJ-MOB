@@ -183,12 +183,13 @@ const Map = () => {
     distanceToNextManeuver,
     startNavigation,
     stopNavigation,
-    chooseRoute,
     setRouteExcludes,
     routeFeatures,
-    calculateRoutes,
     recalculateRoute,
     isRerouting,
+    remainingDistance,
+    remainingDuration,
+    estimatedArrival
   } = useRoute(userLocation, state.destination);
 
   const revertToUserPreferencesIfQrActive = useCallback(
@@ -758,6 +759,9 @@ const Map = () => {
               ? routeFeatures["primary"]
               : undefined
           }
+          remainingDistance={remainingDistance}
+          remainingDuration={remainingDuration}
+          estimatedArrival={estimatedArrival}
         />
       )}
 
