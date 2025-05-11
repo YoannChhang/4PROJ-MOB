@@ -8,7 +8,7 @@ export default function LoginScreen() {
   const pathname = usePathname();
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Sign in to your accout</Text>
+      <Text style={styles.title}>Connectez-vous à votre compte</Text>
       <LoginForm
         toRegister={() => {
           if (pathname == "/auth/register") return;

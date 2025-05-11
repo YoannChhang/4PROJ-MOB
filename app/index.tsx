@@ -153,17 +153,17 @@ const Map = () => {
   const [preferences, setPreferences] = useState<RoutingPreference[]>([
     {
       id: "avoid_tolls",
-      label: "Avoid Tolls",
+      label: "Éviter les péages",
       enabled: userData?.preferences?.avoid_tolls || false,
     },
     {
       id: "avoid_highways",
-      label: "Avoid Highways",
+      label: "Éviter les autoroutes",
       enabled: userData?.preferences?.avoid_highways || false,
     },
     {
       id: "avoid_unpaved",
-      label: "Avoid Unpaved Roads",
+      label: "Éviter les routes non goudronnées",
       enabled: userData?.preferences?.avoid_unpaved || false,
     },
   ]);
@@ -189,7 +189,7 @@ const Map = () => {
     isRerouting,
     remainingDistance,
     remainingDuration,
-    estimatedArrival
+    estimatedArrival,
   } = useRoute(userLocation, state.destination);
 
   const revertToUserPreferencesIfQrActive = useCallback(
@@ -221,17 +221,17 @@ const Map = () => {
       const newPrefsUI = [
         {
           id: "avoid_tolls",
-          label: "Avoid Tolls",
+          label: "Éviter les péages",
           enabled: !!userData.preferences.avoid_tolls,
         },
         {
           id: "avoid_highways",
-          label: "Avoid Highways",
+          label: "Éviter les autoroutes",
           enabled: !!userData.preferences.avoid_highways,
         },
         {
           id: "avoid_unpaved",
-          label: "Avoid Unpaved Roads",
+          label: "Éviter les routes non goudronnées",
           enabled: !!userData.preferences.avoid_unpaved,
         },
       ];
@@ -265,7 +265,10 @@ const Map = () => {
         await ttsManager.initialize();
         const trackingStarted = await locationTracker.startTracking();
         if (!trackingStarted)
-          Alert.alert("Location Required", "Please enable location access.");
+          Alert.alert(
+            "Localisation Requise",
+            "Veuillez activer l'accès à la localisation."
+          );
         const onLocationUpdate = (loc: [number, number]) =>
           setUserLocation(loc);
         locationTracker.on("locationUpdate", onLocationUpdate);
@@ -274,7 +277,10 @@ const Map = () => {
         dispatch({ type: "INITIALIZE_COMPLETE" });
       } catch (error) {
         dispatch({ type: "INITIALIZE_COMPLETE" });
-        Alert.alert("Error", "Failed to initialize app services.");
+        Alert.alert(
+          "Erreur",
+          "Échec de l'initialisation des services de l'application."
+        );
         console.error("Init error:", error);
       }
     };
@@ -365,7 +371,8 @@ const Map = () => {
               isManuallyControlled: true,
             } as CameraConfig)
         );
-      } else Alert.alert("QR Code Error", "Invalid route data.");
+      } else
+        Alert.alert("Erreur de Code QR", "Données d'itinéraire invalides.");
 
       setTimeout(() => {
         setQRData(null);
@@ -435,8 +442,8 @@ const Map = () => {
               err
             );
             Alert.alert(
-              "Error",
-              "Could not remove the pin. Please try again later."
+              "Erreur",
+              "Impossible de supprimer le signalement. Veuillez réessayer plus tard."
             );
           }
         }
@@ -622,7 +629,7 @@ const Map = () => {
 
   const handleUIStartNavigation = useCallback(async () => {
     if (!selectedRoute) {
-      Alert.alert("Error", "No route selected.");
+      Alert.alert("Erreur", "Aucun itinéraire sélectionné.");
       return;
     }
     await startNavigation();

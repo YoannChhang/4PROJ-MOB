@@ -55,9 +55,9 @@ export default ({ config }) => ({
         "expo-location",
         {
           locationAlwaysAndWhenInUsePermission:
-            "Allow access to your location even when the app is closed.",
+            "Autoriser l'accès à votre localisation même lorsque l'application est fermée.",
           locationAlwaysPermission:
-            "Allow this app to access your location at all times.",
+            "Autoriser cette application à accéder à votre localisation à tout moment.",
           isAndroidForegroundServiceEnabled: true,
           isAndroidBackgroundLocationEnabled: true,
         },

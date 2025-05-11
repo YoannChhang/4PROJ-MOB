@@ -19,7 +19,7 @@ interface LoginFormProps {
 const LoginForm: React.FC<LoginFormProps> = ({ toRegister }) => {
   const [loginError, setError] = useState("");
 
-  const { signIn } = useUser()
+  const { signIn } = useUser();
 
   const {
     control,
@@ -33,15 +33,13 @@ const LoginForm: React.FC<LoginFormProps> = ({ toRegister }) => {
   });
 
   const onSubmit = (data: LoginFormData) => {
-
     const { email, password } = data;
-    
+
     const onFail = (msg: string) => {
-      setError(msg)
+      setError(msg);
     };
 
-    signIn(false, onFail, email, password)
-
+    signIn(false, onFail, email, password);
   };
 
   return (
@@ -50,15 +48,15 @@ const LoginForm: React.FC<LoginFormProps> = ({ toRegister }) => {
         control={control}
         name="email"
         rules={{
-          required: "Email is required",
+          required: "L'email est requis",
           pattern: {
             value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-            message: "Must be a valid email",
+            message: "Doit être un email valide",
           },
         }}
         render={({ field: { onChange, onBlur, value } }) => (
           <StyledTextInput
-            placeholder="Email"
+            placeholder="Adresse e-mail"
             keyboardType="email-address"
             autoCapitalize="none"
             onBlur={onBlur}
@@ -73,10 +71,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ toRegister }) => {
       <Controller
         control={control}
         name="password"
-        rules={{ required: "Password is required" }}
+        rules={{ required: "Le mot de passe est requis" }}
         render={({ field: { onChange, onBlur, value } }) => (
           <StyledTextInput
-            placeholder="Password"
+            placeholder="Mot de passe"
             secureTextEntry
             onBlur={onBlur}
             onChangeText={onChange}
@@ -90,20 +88,20 @@ const LoginForm: React.FC<LoginFormProps> = ({ toRegister }) => {
 
       <IconButton
         icon={<FontAwesome5 name="sign-in-alt" size={16} color="#fff" />}
-        text="Log In"
+        text="Se connecter"
         onPress={handleSubmit(onSubmit)}
         buttonStyle={styles.loginButton}
         textStyle={{ color: "#fff" }}
       />
       <IconButton
-        text="Don't have an account ? Register"
+        text="Pas de compte ? S'inscrire"
         onPress={toRegister}
         buttonStyle={styles.registerButton}
         textStyle={{ color: "#000" }}
       />
 
       <GoogleLoginButton
-        text="Sign in with Google"
+        text="Se connecter avec Google"
         buttonStyle={{ marginTop: 8 }}
       />
     </View>

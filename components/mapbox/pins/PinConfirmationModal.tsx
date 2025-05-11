@@ -1,15 +1,23 @@
 // components/mapbox/pins/PinConfirmationModal.tsx
-import React, { useEffect, useRef, useState } from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
-import { PinRead } from '@/types/api';
+import React, { useEffect, useRef, useState } from "react";
+import {
+  Modal,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  Platform,
+} from "react-native";
+import { FontAwesome5 } from "@expo/vector-icons";
+import { PinRead } from "@/types/api";
 
 const TYPE_LABELS: Record<string, string> = {
   obstacle: "Obstacle",
-  traffic_jam: "Traffic Jam",
+  traffic_jam: "Embouteillage",
   cop: "Police",
   accident: "Accident",
-  roadwork: "Road Work",
+  roadwork: "Travaux",
 };
 
 interface PinConfirmationModalProps {
@@ -72,19 +80,32 @@ const PinConfirmationModal: React.FC<PinConfirmationModalProps> = ({
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.header}>
-            <FontAwesome5 name="map-marker-question" size={24} color="#4285F4" style={styles.headerIcon} />
-            <Text style={styles.title}>Incident Check</Text>
+            <FontAwesome5
+              name="map-marker-question"
+              size={24}
+              color="#4285F4"
+              style={styles.headerIcon}
+            />
+            <Text style={styles.title}>Vérification d'incident</Text>
           </View>
           <Text style={styles.message}>
-            Is this <Text style={styles.incidentType}>{incidentTypeLabel}</Text> still present?
+            Il y'a t-il encore un incident de type{" "}
+            <Text style={styles.incidentType}>{incidentTypeLabel}</Text>{" "}
+            present?
           </Text>
           {pin.description && (
             <Text style={styles.description}>"{pin.description}"</Text>
           )}
 
           <View style={styles.timerContainer}>
-            <ActivityIndicator size="small" color="#FFA500" style={styles.timerIcon}/>
-            <Text style={styles.timerText}>Auto-confirming in {timeLeft}s</Text>
+            <ActivityIndicator
+              size="small"
+              color="#FFA500"
+              style={styles.timerIcon}
+            />
+            <Text style={styles.timerText}>
+              Confirmation automatique dans {timeLeft}s
+            </Text>
           </View>
 
           <View style={styles.buttonContainer}>
@@ -93,14 +114,14 @@ const PinConfirmationModal: React.FC<PinConfirmationModalProps> = ({
               onPress={() => onResponse(true)}
             >
               <FontAwesome5 name="check" size={16} color="#fff" />
-              <Text style={styles.buttonText}>Yes, It's Here</Text>
+              <Text style={styles.buttonText}>Oui</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.button, styles.noButton]}
               onPress={() => onResponse(false)}
             >
               <FontAwesome5 name="times" size={16} color="#fff" />
-              <Text style={styles.buttonText}>No, It's Gone</Text>
+              <Text style={styles.buttonText}>Non, disparu</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -112,108 +133,108 @@ const PinConfirmationModal: React.FC<PinConfirmationModalProps> = ({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   modalContent: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderRadius: 16,
     paddingHorizontal: 20,
     paddingVertical: 24,
-    width: '95%',
+    width: "95%",
     maxWidth: 380,
-    alignItems: 'center',
-    shadowColor: '#000',
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 8,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 18,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   headerIcon: {
     marginRight: 10,
   },
   title: {
     fontSize: 22,
-    fontWeight: '700',
-    color: '#2c3e50',
+    fontWeight: "700",
+    color: "#2c3e50",
   },
   message: {
     fontSize: 18,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 10,
-    color: '#34495e',
+    color: "#34495e",
     lineHeight: 26,
   },
   incidentType: {
-    fontWeight: 'bold',
-    color: '#3b82f6', // A blue color
+    fontWeight: "bold",
+    color: "#3b82f6", // A blue color
   },
   description: {
     fontSize: 14,
-    textAlign: 'center',
-    fontStyle: 'italic',
-    color: '#7f8c8d',
+    textAlign: "center",
+    fontStyle: "italic",
+    color: "#7f8c8d",
     marginBottom: 22,
     paddingHorizontal: 10,
   },
   timerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 26,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: '#fef3c7', // Light yellow background
+    backgroundColor: "#fef3c7", // Light yellow background
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#fde68a', // Slightly darker yellow border
+    borderColor: "#fde68a", // Slightly darker yellow border
   },
   timerIcon: {
     marginRight: 8,
   },
   timerText: {
     fontSize: 14,
-    color: '#b45309', // Dark amber color
-    fontWeight: '500',
+    color: "#b45309", // Dark amber color
+    fontWeight: "500",
   },
   buttonContainer: {
-    flexDirection: Platform.OS === 'ios' ? 'row' : 'column-reverse', // Stack buttons vertically on Android for better fit
-    justifyContent: 'space-around',
-    width: '100%',
+    flexDirection: Platform.OS === "ios" ? "row" : "column-reverse", // Stack buttons vertically on Android for better fit
+    justifyContent: "space-around",
+    width: "100%",
   },
   button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderRadius: 10,
     minWidth: 140,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 3,
-    marginVertical: Platform.OS === 'ios' ? 0 : 6, // Add vertical margin on Android
+    marginVertical: Platform.OS === "ios" ? 0 : 6, // Add vertical margin on Android
   },
   yesButton: {
-    backgroundColor: '#27ae60', // Emerald green
-    marginRight: Platform.OS === 'ios' ? 10 : 0,
+    backgroundColor: "#27ae60", // Emerald green
+    marginRight: Platform.OS === "ios" ? 10 : 0,
   },
   noButton: {
-    backgroundColor: '#c0392b', // Pomegranate red
-    marginLeft: Platform.OS === 'ios' ? 10 : 0,
+    backgroundColor: "#c0392b", // Pomegranate red
+    marginLeft: Platform.OS === "ios" ? 10 : 0,
   },
   buttonText: {
-    color: '#fff',
-    fontWeight: '600',
+    color: "#fff",
+    fontWeight: "600",
     fontSize: 16,
     marginLeft: 10,
   },
