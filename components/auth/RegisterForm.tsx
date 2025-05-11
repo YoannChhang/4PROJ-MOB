@@ -61,10 +61,10 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ toLogin }) => {
       <Controller
         control={control}
         name="name"
-        rules={{ required: "Full name is required" }}
+        rules={{ required: "Le nom complet est requis" }}
         render={({ field: { onChange, onBlur, value } }) => (
           <StyledTextInput
-            placeholder="Full name"
+            placeholder="Nom complet"
             keyboardType="default"
             autoCapitalize="none"
             onBlur={onBlur}
@@ -80,15 +80,15 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ toLogin }) => {
         control={control}
         name="email"
         rules={{
-          required: "Email is required",
+          required: "L'email est requis",
           pattern: {
             value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-            message: "Must be a valid email",
+            message: "Doit être un email valide",
           },
         }}
         render={({ field: { onChange, onBlur, value } }) => (
           <StyledTextInput
-            placeholder="Email"
+            placeholder="Adresse e-mail"
             keyboardType="email-address"
             autoCapitalize="none"
             onBlur={onBlur}
@@ -103,10 +103,10 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ toLogin }) => {
       <Controller
         control={control}
         name="password"
-        rules={{ required: "Password is required" }}
+        rules={{ required: "Le mot de passe est requis" }}
         render={({ field: { onChange, onBlur, value } }) => (
           <StyledTextInput
-            placeholder="Password"
+            placeholder="Mot de passe"
             secureTextEntry
             onBlur={onBlur}
             onChangeText={onChange}
@@ -121,12 +121,13 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ toLogin }) => {
         control={control}
         name="confirmPassword"
         rules={{
-          required: "Please confirm your password",
-          validate: (value) => value === password || "Passwords do not match",
+          required: "Veuillez confirmer votre mot de passe",
+          validate: (value) =>
+            value === password || "Les mots de passe ne correspondent pas",
         }}
         render={({ field: { onChange, onBlur, value } }) => (
           <StyledTextInput
-            placeholder="Confirm Password"
+            placeholder="Confirmer le mot de passe"
             secureTextEntry
             onBlur={onBlur}
             onChangeText={onChange}
@@ -143,21 +144,21 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ toLogin }) => {
 
       <IconButton
         icon={<FontAwesome5 name="user-plus" size={16} color="#fff" />}
-        text="Register"
+        text="S'inscrire"
         onPress={handleSubmit(onSubmit)}
         buttonStyle={styles.registerButton}
         textStyle={{ color: "#fff" }}
       />
 
       <IconButton
-        text="Already have an account? Log in"
+        text="Déjà un compte ? Se connecter"
         onPress={toLogin}
         buttonStyle={styles.loginRedirectButton}
         textStyle={{ color: "#000" }}
       />
 
       <GoogleLoginButton
-        text="Sign up with Google"
+        text="S'inscrire avec Google"
         buttonStyle={{ marginTop: 8 }}
       />
     </View>

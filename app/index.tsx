@@ -7,16 +7,9 @@ import React, {
   useRef,
   useReducer,
 } from "react";
-import {
-  StyleSheet,
-  View,
-  ActivityIndicator, // Keep for the very initial "services loading"
-  Text, // Keep for the very initial "services loading"
-  Alert,
-  // Platform, // No longer directly needed here for attribution
-} from "react-native";
-import Mapbox, { MapView } from "@rnmapbox/maps"; // Only MapView might be needed for ref type
-import { useRouter } from "expo-router"; // usePathname not used, removed
+import { StyleSheet, View, ActivityIndicator, Text, Alert } from "react-native";
+import Mapbox, { MapView } from "@rnmapbox/maps";
+import { useRouter } from "expo-router";
 import { useQRCode } from "@/providers/QRCodeProvider";
 import { useUser } from "@/providers/UserProvider";
 import Config from "react-native-config";
@@ -33,7 +26,6 @@ import { Route } from "@/types/mapbox";
 import { PinRead, UserPreferences } from "@/types/api";
 import { RoutingPreference } from "@/components/settings/RoutingPreferences";
 
-// New Component Imports
 import MapDisplay from "@/components/mapbox/display/MapDisplay";
 import MapControlsOverlay from "@/components/mapbox/display/MapControlsOverlay";
 import MapModals from "@/components/mapbox/display/MapModals";
@@ -79,7 +71,7 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
       return {
         ...state,
         uiMode: "map",
-        destination: null, // Also clear destination when hiding search fully
+        destination: null,
         isInitialRouteCalculated: false,
       };
     case "SET_DESTINATION":
@@ -99,7 +91,7 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
         isInitialRouteCalculated: false,
       };
     case "OPEN_SIDE_MENU":
-      return { ...state, isSideMenuOpen: true, uiMode: "map" }; // Ensure uiMode is map when menu opens
+      return { ...state, isSideMenuOpen: true, uiMode: "map" };
     case "CLOSE_SIDE_MENU":
       return { ...state, isSideMenuOpen: false };
     case "SELECT_PIN":
@@ -130,7 +122,7 @@ interface CameraConfig {
   isManuallyControlled?: boolean;
 }
 
-const PIN_PROMPT_TIMEOUT_MS = 20 * 1000; // 20 seconds
+const PIN_PROMPT_TIMEOUT_MS = 20 * 1000;
 
 const Map = () => {
   const router = useRouter();
@@ -149,6 +141,7 @@ const Map = () => {
     null
   );
   const [selectedRouteIdxState, setSelectedRouteIdxState] = useState(0);
+  const isQrRouteActive = useRef(false);
 
   const [cameraConfig, setCameraConfig] = useState<CameraConfig>({
     zoomLevel: 13,
@@ -160,20 +153,22 @@ const Map = () => {
   const [preferences, setPreferences] = useState<RoutingPreference[]>([
     {
       id: "avoid_tolls",
-      label: "Avoid Tolls",
+      label: "Éviter les péages",
       enabled: userData?.preferences?.avoid_tolls || false,
     },
     {
       id: "avoid_highways",
-      label: "Avoid Highways",
+      label: "Éviter les autoroutes",
       enabled: userData?.preferences?.avoid_highways || false,
     },
     {
       id: "avoid_unpaved",
-      label: "Avoid Unpaved Roads",
+      label: "Éviter les routes non goudronnées",
       enabled: userData?.preferences?.avoid_unpaved || false,
     },
   ]);
+
+  const [forceRouteSelectionMode, setForceRouteSelectionMode] = useState(false);
 
   const {
     selectedRoute,
@@ -183,45 +178,64 @@ const Map = () => {
     loading: routeHookLoading,
     error: routeHookError,
     isNavigating,
-    // liveUserLocation from useRoute might be slightly different from userLocation state here,
-    // but for most UI purposes, userLocation state should suffice or pass liveUserLocation if critical.
     traveledCoords,
     displayedInstruction,
     distanceToNextManeuver,
     startNavigation,
     stopNavigation,
-    chooseRoute,
     setRouteExcludes,
     routeFeatures,
-    calculateRoutes,
     recalculateRoute,
     isRerouting,
+    remainingDistance,
+    remainingDuration,
+    estimatedArrival,
   } = useRoute(userLocation, state.destination);
 
+  const revertToUserPreferencesIfQrActive = useCallback(
+    (reason: string) => {
+      if (isQrRouteActive.current) {
+        console.log(`${reason}. Reverting to user preferences for excludes.`);
+        const userPrefsExcludes = getExcludesFromPreferences(
+          userData?.preferences
+        );
+        setRouteExcludes(
+          userPrefsExcludes.length > 0 ? userPrefsExcludes : undefined
+        );
+        isQrRouteActive.current = false;
+      }
+    },
+    [userData?.preferences, setRouteExcludes]
+  );
+
   useEffect(() => {
+    if (userData?.preferences && !isQrRouteActive.current) {
+      const userPrefsExcludes = getExcludesFromPreferences(
+        userData.preferences
+      );
+      setRouteExcludes(
+        userPrefsExcludes.length > 0 ? userPrefsExcludes : undefined
+      );
+    }
     if (userData?.preferences) {
-      const newPrefs = [
+      const newPrefsUI = [
         {
           id: "avoid_tolls",
-          label: "Avoid Tolls",
+          label: "Éviter les péages",
           enabled: !!userData.preferences.avoid_tolls,
         },
         {
           id: "avoid_highways",
-          label: "Avoid Highways",
+          label: "Éviter les autoroutes",
           enabled: !!userData.preferences.avoid_highways,
         },
         {
           id: "avoid_unpaved",
-          label: "Avoid Unpaved Roads",
+          label: "Éviter les routes non goudronnées",
           enabled: !!userData.preferences.avoid_unpaved,
         },
       ];
-      setPreferences(newPrefs);
-      const currentExcludes = getExcludesFromPreferences(userData.preferences);
-      setRouteExcludes(
-        currentExcludes.length > 0 ? currentExcludes : undefined
-      );
+      setPreferences(newPrefsUI);
     }
   }, [userData?.preferences, setRouteExcludes]);
 
@@ -251,7 +265,10 @@ const Map = () => {
         await ttsManager.initialize();
         const trackingStarted = await locationTracker.startTracking();
         if (!trackingStarted)
-          Alert.alert("Location Required", "Please enable location access.");
+          Alert.alert(
+            "Localisation Requise",
+            "Veuillez activer l'accès à la localisation."
+          );
         const onLocationUpdate = (loc: [number, number]) =>
           setUserLocation(loc);
         locationTracker.on("locationUpdate", onLocationUpdate);
@@ -260,7 +277,10 @@ const Map = () => {
         dispatch({ type: "INITIALIZE_COMPLETE" });
       } catch (error) {
         dispatch({ type: "INITIALIZE_COMPLETE" });
-        Alert.alert("Error", "Failed to initialize app services.");
+        Alert.alert(
+          "Erreur",
+          "Échec de l'initialisation des services de l'application."
+        );
         console.error("Init error:", error);
       }
     };
@@ -277,8 +297,9 @@ const Map = () => {
       dispatch({ type: "START_NAVIGATION_UI" });
     } else if (!isNavigating && state.uiMode === "navigation") {
       dispatch({ type: "STOP_NAVIGATION_UI" });
+      revertToUserPreferencesIfQrActive("QR-initiated navigation ended");
     }
-  }, [isNavigating, state.uiMode]);
+  }, [isNavigating, state.uiMode, revertToUserPreferencesIfQrActive]);
 
   useEffect(() => {
     if (
@@ -303,36 +324,73 @@ const Map = () => {
       dispatch({ type: "SET_INITIAL_ROUTE_CALCULATED", payload: false });
       setSelectedRoute(null);
       setAlternateRoutes([]);
+
       if (qrData.toCoords) {
         dispatch({ type: "SHOW_SEARCH" });
+        setForceRouteSelectionMode(true); // Force route-selection mode for QR
+
+        if (qrData.hasOwnProperty("excludes")) {
+          const qrSpecificExcludes =
+            qrData.excludes && qrData.excludes.length > 0
+              ? qrData.excludes
+              : undefined;
+          setRouteExcludes(qrSpecificExcludes);
+          isQrRouteActive.current = true;
+          console.log(
+            "QR Route: Applying excludes from QR data:",
+            qrSpecificExcludes
+          );
+        } else {
+          revertToUserPreferencesIfQrActive(
+            "New QR scan without excludes received"
+          );
+          // isQrRouteActive.current will be set to false by the revert function
+          console.log(
+            "QR Route: 'excludes' not specified in QR. Using/Reverting to user preferences."
+          );
+        }
+
+        setCameraConfig(
+          (prev) =>
+            ({
+              ...prev,
+              centerCoordinate: qrData.toCoords,
+              zoomLevel: 14,
+              isManuallyControlled: true,
+            } as CameraConfig)
+        );
+
         dispatch({ type: "SET_DESTINATION", payload: qrData.toCoords });
-        const qrExcludes =
-          qrData.excludes && qrData.excludes.length > 0
-            ? qrData.excludes
-            : undefined;
-        setRouteExcludes(qrExcludes);
-        calculateRoutes(userLocation, qrData.toCoords, qrExcludes);
-        setCameraConfig((prev) => ({
-          ...prev,
-          centerCoordinate: qrData.toCoords,
-          zoomLevel: 14,
-          isManuallyControlled: true,
-        }));
-      } else Alert.alert("QR Code Error", "Invalid route data.");
+
+        setCameraConfig(
+          (prev) =>
+            ({
+              ...prev,
+              centerCoordinate: qrData.toCoords,
+              zoomLevel: 14,
+              isManuallyControlled: true,
+            } as CameraConfig)
+        );
+      } else
+        Alert.alert("Erreur de Code QR", "Données d'itinéraire invalides.");
+
       setTimeout(() => {
         setQRData(null);
         qrDataProcessed.current = false;
-        setCameraConfig((prev) => ({ ...prev, isManuallyControlled: false }));
+        setCameraConfig(
+          (prev) => ({ ...prev, isManuallyControlled: false } as CameraConfig)
+        );
+        setForceRouteSelectionMode(false); // Reset after showing
       }, 1500);
     }
   }, [
     qrData,
     userLocation,
-    calculateRoutes,
     setQRData,
     setSelectedRoute,
     setAlternateRoutes,
     setRouteExcludes,
+    revertToUserPreferencesIfQrActive,
   ]);
 
   const alertPinsLocation = useMemo(
@@ -344,14 +402,12 @@ const Map = () => {
   );
   const { pins: alertPinsFromHook } = useAlertPins(alertPinsLocation);
 
-  const {
-    pinForConfirmationAttempt, // This is the pin identified by the hook
-    confirmPinHandled, // Call this after modal interaction
-  } = useNearbyPinProximity(
-    userLocation,
-    alertPinsFromHook,
-    isPinConfirmationModalVisible // Pass modal visibility
-  );
+  const { pinForConfirmationAttempt, confirmPinHandled } =
+    useNearbyPinProximity(
+      userLocation,
+      alertPinsFromHook,
+      isPinConfirmationModalVisible
+    );
 
   useEffect(() => {
     if (pinForConfirmationAttempt && !isPinConfirmationModalVisible) {
@@ -359,15 +415,14 @@ const Map = () => {
         `[AppIndex] Pin ${pinForConfirmationAttempt.id} identified by proximity hook. Showing modal.`
       );
       setIsPinConfirmationModalVisible(true);
-      
     } else if (!pinForConfirmationAttempt && isPinConfirmationModalVisible) {
-      setIsPinConfirmationModalVisible(false); // closes modal after pin is set to null
+      setIsPinConfirmationModalVisible(false);
     }
   }, [pinForConfirmationAttempt, isPinConfirmationModalVisible]);
 
   const handlePinConfirmationResponse = useCallback(
     async (isStillThere: boolean) => {
-      const pinThatWasConfirmed = pinForConfirmationAttempt; // Capture before it might be cleared by confirmPinHandled
+      const pinThatWasConfirmed = pinForConfirmationAttempt;
 
       if (pinThatWasConfirmed) {
         console.log(
@@ -387,12 +442,11 @@ const Map = () => {
               err
             );
             Alert.alert(
-              "Error",
-              "Could not remove the pin. Please try again later."
+              "Erreur",
+              "Impossible de supprimer le signalement. Veuillez réessayer plus tard."
             );
           }
         }
-        // IMPORTANT: Notify the proximity hook that this pin's confirmation process is done.
         confirmPinHandled(pinThatWasConfirmed.id);
       } else {
         console.warn(
@@ -426,10 +480,12 @@ const Map = () => {
       setAlternateRoutes([]);
       setSelectedRouteIdxState(0);
       setCameraConfig((prev) => ({ ...prev, isManuallyControlled: false }));
+      revertToUserPreferencesIfQrActive(
+        "QR-initiated route planning cancelled by toggling search UI"
+      );
     } else if (state.isSideMenuOpen) {
-      // If side menu is open and search is pressed
-      dispatch({ type: "CLOSE_SIDE_MENU" }); // Close menu
-      dispatch({ type: "SHOW_SEARCH" }); // Then show search
+      dispatch({ type: "CLOSE_SIDE_MENU" });
+      dispatch({ type: "SHOW_SEARCH" });
       setCameraConfig((prev) => ({ ...prev, isManuallyControlled: true }));
     }
   }, [
@@ -437,21 +493,24 @@ const Map = () => {
     state.isSideMenuOpen,
     setSelectedRoute,
     setAlternateRoutes,
+    revertToUserPreferencesIfQrActive,
   ]);
 
   const handleToggleSideMenu = useCallback(() => {
     if (state.isSideMenuOpen) {
       dispatch({ type: "CLOSE_SIDE_MENU" });
-      // Optionally, if not navigating, reset manual camera control
       if (!isNavigating) {
         setCameraConfig((prev) => ({ ...prev, isManuallyControlled: false }));
       }
     } else {
       if (state.uiMode === "search" || state.uiMode === "route-selection") {
-        dispatch({ type: "HIDE_SEARCH" }); // Close search/route selection if open
+        dispatch({ type: "HIDE_SEARCH" });
         setSelectedRoute(null);
         setAlternateRoutes([]);
         setSelectedRouteIdxState(0);
+        revertToUserPreferencesIfQrActive(
+          "QR-initiated route planning cancelled by opening side menu"
+        );
       }
       dispatch({ type: "OPEN_SIDE_MENU" });
       setCameraConfig((prev) => ({ ...prev, isManuallyControlled: true }));
@@ -462,6 +521,7 @@ const Map = () => {
     isNavigating,
     setSelectedRoute,
     setAlternateRoutes,
+    revertToUserPreferencesIfQrActive,
   ]);
 
   const handleQRScan = useCallback(() => router.push("/qr-scanner"), [router]);
@@ -483,8 +543,8 @@ const Map = () => {
   );
 
   const navigateToLogin = useCallback(() => {
-    setLoginPromptVisible(false); // Close prompt
-    dispatch({ type: "CLOSE_SIDE_MENU" }); // Close side menu if open
+    setLoginPromptVisible(false);
+    dispatch({ type: "CLOSE_SIDE_MENU" });
     router.push("/auth");
   }, [router]);
 
@@ -495,6 +555,9 @@ const Map = () => {
         setSelectedRoute(null);
         setAlternateRoutes([]);
         setSelectedRouteIdxState(0);
+        revertToUserPreferencesIfQrActive(
+          "QR-initiated route planning cancelled by selecting a pin"
+        );
       }
       if (state.isSideMenuOpen) dispatch({ type: "CLOSE_SIDE_MENU" });
       dispatch({ type: "SELECT_PIN", payload: pin });
@@ -504,7 +567,13 @@ const Map = () => {
         isManuallyControlled: true,
       }));
     },
-    [state.uiMode, state.isSideMenuOpen, setSelectedRoute, setAlternateRoutes]
+    [
+      state.uiMode,
+      state.isSideMenuOpen,
+      setSelectedRoute,
+      setAlternateRoutes,
+      revertToUserPreferencesIfQrActive,
+    ]
   );
 
   const handleMapClusterPress = useCallback(
@@ -534,22 +603,9 @@ const Map = () => {
 
   const handleDestinationSelected = useCallback(
     (coords: [number, number]) => {
+      revertToUserPreferencesIfQrActive("Manual search initiated after QR");
       dispatch({ type: "SET_DESTINATION", payload: coords });
-      setSelectedRouteIdxState(0); // Reset selected route index for new destination
-      if (userLocation) {
-        const currentExcludes = getExcludesFromPreferences(
-          userData?.preferences
-        );
-        calculateRoutes(
-          userLocation,
-          coords,
-          currentExcludes.length > 0 ? currentExcludes : undefined
-        );
-      } else
-        Alert.alert(
-          "Location Needed",
-          "Waiting for location to calculate routes."
-        );
+      setSelectedRouteIdxState(0);
       setCameraConfig((prev) => ({
         ...prev,
         centerCoordinate: coords,
@@ -557,7 +613,7 @@ const Map = () => {
         isManuallyControlled: true,
       }));
     },
-    [userLocation, calculateRoutes, userData?.preferences]
+    [revertToUserPreferencesIfQrActive]
   );
 
   const handleCancelSearchUIMode = useCallback(() => {
@@ -566,28 +622,14 @@ const Map = () => {
     setAlternateRoutes([]);
     setSelectedRouteIdxState(0);
     setCameraConfig((prev) => ({ ...prev, isManuallyControlled: false }));
-  }, [setSelectedRoute, setAlternateRoutes]);
-
-  const handleUIRouteSelected = useCallback(
-    (route: Route, /* new: pass all alternates */ allAlternates: Route[]) => {
-      // chooseRoute(route, selectedRoute); // This logic is now handled by useRoute's chooseRoute
-      setSelectedRoute(route); // Directly set the selected route
-      setAlternateRoutes(allAlternates.filter((r) => r !== route)); // Update alternates
-
-      if (route.geometry.coordinates.length > 0) {
-        setCameraConfig((prev) => ({
-          ...prev,
-          centerCoordinate: route.geometry.coordinates[0] as [number, number],
-          isManuallyControlled: true,
-        }));
-      }
-    },
-    [setSelectedRoute, setAlternateRoutes, chooseRoute, selectedRoute]
-  );
+    revertToUserPreferencesIfQrActive(
+      "QR-initiated route planning cancelled by explicit cancel"
+    );
+  }, [setSelectedRoute, setAlternateRoutes, revertToUserPreferencesIfQrActive]);
 
   const handleUIStartNavigation = useCallback(async () => {
     if (!selectedRoute) {
-      Alert.alert("Error", "No route selected.");
+      Alert.alert("Erreur", "Aucun itinéraire sélectionné.");
       return;
     }
     await startNavigation();
@@ -595,14 +637,13 @@ const Map = () => {
   }, [selectedRoute, startNavigation]);
 
   const handleUICancelNavigation = useCallback(() => {
-    stopNavigation(); // This will set isNavigating to false via useRoute
-    // The useEffect for isNavigating will then dispatch STOP_NAVIGATION_UI
-    setSelectedRoute(null); // Clear routes
+    stopNavigation();
+    setSelectedRoute(null);
     setAlternateRoutes([]);
     setSelectedRouteIdxState(0);
-    // dispatch({ type: "HIDE_SEARCH" }); // Already handled by STOP_NAVIGATION_UI if it resets to map mode
-    qrDataProcessed.current = false; // Reset QR flag
+    qrDataProcessed.current = false;
     setCameraConfig((prev) => ({ ...prev, isManuallyControlled: false }));
+    // The useEffect watching `isNavigating` will handle reverting preferences
   }, [stopNavigation, setSelectedRoute, setAlternateRoutes]);
 
   const handleTogglePreference = useCallback(
@@ -615,12 +656,20 @@ const Map = () => {
         (acc as any)[p.id] = p.enabled;
         return acc;
       }, {} as UserPreferences);
-      if (isSignedIn)
+
+      if (isSignedIn) {
         updatePreferences(newPrefsObj).catch((err) =>
           console.error("Pref update fail:", err)
         );
-      const newExcludes = getExcludesFromPreferences(newPrefsObj);
-      setRouteExcludes(newExcludes.length > 0 ? newExcludes : undefined);
+      }
+      if (!isQrRouteActive.current) {
+        const newExcludes = getExcludesFromPreferences(newPrefsObj);
+        setRouteExcludes(newExcludes.length > 0 ? newExcludes : undefined);
+      } else {
+        console.log(
+          "Preference changed, but QR route is active. Excludes will update after QR session ends."
+        );
+      }
     },
     [preferences, setRouteExcludes, isSignedIn, updatePreferences]
   );
@@ -630,7 +679,6 @@ const Map = () => {
     [recalculateRoute]
   );
 
-  // Initial loading screen for services like location, TTS
   if (state.isInitializing && !userLocation) {
     return (
       <View style={styles.loadingContainer}>
@@ -676,12 +724,11 @@ const Map = () => {
         onDestinationSelected={handleDestinationSelected}
         onStartNavigation={handleUIStartNavigation}
         onCancelSearch={handleCancelSearchUIMode}
-        // Pass chooseRoute to SearchAndRouteControl. It will call this when a route is tapped.
-        // SearchAndRouteControl will determine the primary and alternates based on what was tapped.
         onRouteSelected={(newSelectedRoute, newAlternates) => {
           setSelectedRoute(newSelectedRoute);
-          setAlternateRoutes(newAlternates);
-          // Update camera to new selected route if necessary
+          setAlternateRoutes(
+            newAlternates.filter((r) => r !== newSelectedRoute)
+          );
           if (newSelectedRoute.geometry.coordinates.length > 0) {
             setCameraConfig((prev) => ({
               ...prev,
@@ -693,7 +740,6 @@ const Map = () => {
             }));
           }
         }}
-        calculateRoutes={calculateRoutes} // For initial calculation after destination select
         loading={
           routeHookLoading && !isRerouting && !state.isInitialRouteCalculated
         }
@@ -705,6 +751,7 @@ const Map = () => {
         alternateRoutes={alternateRoutes || []}
         selectedRouteIndex={selectedRouteIdxState}
         setSelectedRouteIndex={setSelectedRouteIdxState}
+        forceRouteSelectionMode={forceRouteSelectionMode} // Pass prop
       />
 
       {isNavigating && selectedRoute && (
@@ -719,6 +766,9 @@ const Map = () => {
               ? routeFeatures["primary"]
               : undefined
           }
+          remainingDistance={remainingDistance}
+          remainingDuration={remainingDuration}
+          estimatedArrival={estimatedArrival}
         />
       )}
 
@@ -761,17 +811,13 @@ const Map = () => {
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: "#F5FCFF" },
-  // Map styles are now in MapDisplay.tsx
   loadingContainer: {
-    // Keep for the very initial "services loading"
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#F5FCFF",
   },
-  loadingText: { marginTop: 12, fontSize: 16, color: "#555" }, // Keep for "services loading"
-  // Destination marker styles are now in MapDisplay.tsx
-  // Error, FullScreenLoading, ReroutingIndicator styles are now in MapFeedbackIndicators.tsx
+  loadingText: { marginTop: 12, fontSize: 16, color: "#555" },
 });
 
 export default Map;

@@ -41,11 +41,6 @@ interface SearchAndRouteControlProps {
   onStartNavigation: () => void;
   onCancelSearch: () => void;
   onRouteSelected: (route: Route, alternateRoutes: Route[]) => void;
-  calculateRoutes: (
-    origin: [number, number] | null,
-    destination: [number, number] | null,
-    excludes?: string[]
-  ) => Promise<void>;
   loading: boolean;
   visible: boolean;
   routeFeatures?: Record<string, RouteFeatures>;
@@ -53,6 +48,7 @@ interface SearchAndRouteControlProps {
   alternateRoutes: Route[];
   selectedRouteIndex: number;
   setSelectedRouteIndex: (index: number) => void;
+  forceRouteSelectionMode?: boolean; // NEW PROP
 }
 
 const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
@@ -61,7 +57,6 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
   onStartNavigation,
   onCancelSearch,
   onRouteSelected,
-  calculateRoutes,
   loading,
   visible,
   routeFeatures,
@@ -69,6 +64,7 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
   alternateRoutes,
   selectedRouteIndex,
   setSelectedRouteIndex,
+  forceRouteSelectionMode = false, // NEW PROP
 }) => {
   // Animation values
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -114,6 +110,13 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
       setSelectedRouteIndex(0);
     }
   }, [searchMode]);
+
+  // Switch to route-selection mode if forced by prop (e.g. QR code)
+  useEffect(() => {
+    if (forceRouteSelectionMode) {
+      setSearchMode(false);
+    }
+  }, [forceRouteSelectionMode]);
 
   // Handle search input change - using Mapbox Search SDK
   const handleSearch = useCallback(
@@ -187,21 +190,6 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
 
           // Notify parent component
           onDestinationSelected(selectedCoords);
-
-          // If we have user location, fetch routes
-          if (userLocation) {
-            try {
-              // Get route excludes from preferences
-              const excludes = getExcludesFromPreferences(
-                userData?.preferences
-              );
-
-              // Manually calculate routes
-              await calculateRoutes(userLocation, selectedCoords, excludes);
-            } catch (error) {
-              console.error("Error fetching routes:", error);
-            }
-          }
         }
       } catch (error) {
         console.error("Error retrieving location details:", error);
@@ -209,13 +197,7 @@ const SearchAndRouteControl: React.FC<SearchAndRouteControlProps> = ({
         setSearchLoading(false);
       }
     },
-    [
-      userLocation,
-      onDestinationSelected,
-      userData?.preferences,
-      searchSession,
-      calculateRoutes,
-    ]
+    [userLocation, onDestinationSelected, userData?.preferences, searchSession]
   );
 
   // Select a different route

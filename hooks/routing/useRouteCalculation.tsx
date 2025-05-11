@@ -176,23 +176,6 @@ export const useRouteCalculation = (
     []
   );
 
-  // Do initial calculation only once if origin and destination are provided
-  useEffect(() => {
-    if (
-      !initialCalculationDone.current &&
-      initialOrigin &&
-      initialDestination
-    ) {
-      initialCalculationDone.current = true;
-      calculateRoutes(initialOrigin, initialDestination, initialRouteExcludes);
-    }
-  }, [
-    initialOrigin,
-    initialDestination,
-    initialRouteExcludes,
-    calculateRoutes,
-  ]);
-
   /**
    * Choose a different route
    * @param route Route to select
@@ -230,6 +213,6 @@ export const useRouteCalculation = (
     routeFeatures,
     setRouteFeatures,
     chooseRoute,
-    calculateRoutes, // Expose this function
+    calculateRoutes,
   };
 };

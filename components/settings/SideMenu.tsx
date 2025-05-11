@@ -125,7 +125,7 @@ const SideMenu: React.FC<SideMenuProps> = ({
       >
         <View style={styles.header}>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
-            Settings
+            Paramètres
           </Text>
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
             <FontAwesome5
@@ -136,10 +136,7 @@ const SideMenu: React.FC<SideMenuProps> = ({
           </TouchableOpacity>
         </View>
 
-        <ScrollView
-          style={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           <ProfileSection toLogin={toLogin} />
           <View style={styles.divider} />
           <RoutingPreferences

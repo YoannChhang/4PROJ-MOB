@@ -98,19 +98,20 @@ const LocationPermissionScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>We Need Your Location</Text>
+      <Text style={styles.title}>Nous avons besoin de votre localisation</Text>
       <Text style={styles.description}>
-        This app requires access to your location to provide navigation and
-        real-time tracking. Please grant permission to continue.
+        Cette application nécessite l'accès à votre localisation pour fournir la
+        navigation et le suivi en temps réel. Veuillez accorder la permission
+        pour continuer.
       </Text>
 
       <Button
-        title="Grant Location Access"
+        title="Autoriser l'accès à la localisation"
         onPress={requestForegroundPermission}
         disabled={hasForegroundPermission}
       />
       <Button
-        title="Grant Background Location Access"
+        title="Autoriser l'accès à la localisation en arrière-plan"
         onPress={requestBackgroundPermission}
         disabled={!hasForegroundPermission}
       />

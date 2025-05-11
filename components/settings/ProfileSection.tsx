@@ -28,7 +28,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ toLogin }) => {
       <View style={styles.container}>
         <View style={styles.profileHeader}>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
-            Profile
+            Profil
           </Text>
         </View>
         <View style={styles.userInfoContainer}>
@@ -52,7 +52,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ toLogin }) => {
           </View>
         </View>
         <IconButton
-          text="Sign out"
+          text="Se déconnecter"
           icon={<FontAwesome5 name="sign-out-alt" size={16} color="#fff" />}
           onPress={signOut}
           buttonStyle={styles.signOutButton}
@@ -65,20 +65,20 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ toLogin }) => {
   return (
     <View style={styles.container}>
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
-        Profile
+        Profil
       </Text>
       <Text style={[styles.subtitle, { color: Colors[colorScheme].icon }]}>
-        Sign in to save your preferences
+        Connectez-vous pour enregistrer vos préférences
       </Text>
       <IconButton
-        text="Sign in"
+        text="Se connecter"
         icon={<FontAwesome5 name="sign-in-alt" size={16} color="#fff" />}
         onPress={toLogin}
         buttonStyle={styles.signInButton}
         textStyle={styles.buttonText}
       />
 
-      <GoogleLoginButton text="Sign in with Google" />
+      <GoogleLoginButton text="Se connecter avec Google" />
     </View>
   );
 };

@@ -9,7 +9,7 @@ export default function RegisterScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Create Account</Text>
+      <Text style={styles.title}>Créer un compte</Text>
       <RegisterForm
         toLogin={() => {
           if (pathname == "/auth") return;

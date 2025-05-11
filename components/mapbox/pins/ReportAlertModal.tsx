@@ -27,10 +27,15 @@ const ALERT_TYPES: {
     icon: "exclamation-triangle",
     color: "#FFA500",
   },
-  { type: "traffic_jam", label: "Traffic Jam", icon: "car", color: "#FF0000" },
+  {
+    type: "traffic_jam",
+    label: "Embouteillage",
+    icon: "car",
+    color: "#FF0000",
+  },
   { type: "cop", label: "Police", icon: "shield-alt", color: "#0000FF" },
   { type: "accident", label: "Accident", icon: "car-crash", color: "#FF0000" },
-  { type: "roadwork", label: "Road Work", icon: "hard-hat", color: "#FF8C00" },
+  { type: "roadwork", label: "Travaux", icon: "hard-hat", color: "#FF8C00" },
 ];
 
 interface ReportAlertModalProps {
@@ -48,15 +53,15 @@ const ReportAlertModal: React.FC<ReportAlertModalProps> = ({
   const { reportPin } = usePins();
 
   const handleCloseModal = () => {
-    setDescription("")
-    onClose()
-  }
+    setDescription("");
+    onClose();
+  };
 
   const handleReport = async (type: PinType) => {
     if (!userLocation) {
       Alert.alert(
-        "Location Unavailable",
-        "We need your location to report an alert. Please enable location services.",
+        "Localisation indisponible",
+        "Nous avons besoin de votre localisation pour signaler une alerte. Veuillez activer les services de localisation.",
         [{ text: "OK" }]
       );
       return;
@@ -74,7 +79,7 @@ const ReportAlertModal: React.FC<ReportAlertModalProps> = ({
         description.trim() || undefined
       );
     } finally {
-      handleCloseModal()
+      handleCloseModal();
     }
   };
 
@@ -91,13 +96,15 @@ const ReportAlertModal: React.FC<ReportAlertModalProps> = ({
             <TouchableWithoutFeedback onPress={() => {}}>
               <View style={styles.modalContent}>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Report Alert</Text>
+                  <Text style={styles.modalTitle}>Signaler une alerte</Text>
                   <TouchableOpacity onPress={handleCloseModal}>
                     <FontAwesome5 name="times" size={20} color="#555" />
                   </TouchableOpacity>
                 </View>
 
-                <Text style={styles.sectionTitle}>Select Alert Type</Text>
+                <Text style={styles.sectionTitle}>
+                  Sélectionner le type d'alerte
+                </Text>
 
                 <FlatList
                   data={ALERT_TYPES}
@@ -127,20 +134,22 @@ const ReportAlertModal: React.FC<ReportAlertModalProps> = ({
                   contentContainerStyle={styles.alertTypesList}
                 />
 
-                <Text style={styles.sectionTitle}>Description (Optional)</Text>
+                <Text style={styles.sectionTitle}>
+                  Description (facultatif)
+                </Text>
 
                 <TextInput
                   style={styles.input}
                   value={description}
                   onChangeText={setDescription}
-                  placeholder="Add details about this alert..."
+                  placeholder="Ajoutez des détails sur cette alerte..."
                   multiline
                   numberOfLines={3}
                 />
 
                 <Text style={styles.note}>
-                  Reports are sent anonymously and will show at your current
-                  location
+                  Les signalements sont envoyés anonymement et apparaîtront à
+                  votre position actuelle.
                 </Text>
               </View>
             </TouchableWithoutFeedback>

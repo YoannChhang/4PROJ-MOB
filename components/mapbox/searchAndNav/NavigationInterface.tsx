@@ -17,6 +17,9 @@ interface NavigationInterfaceProps {
   onCancelNavigation: () => void;
   onRecalculateRoute: () => void;
   routeFeatures?: RouteFeatures; // Added route features
+  remainingDistance?: number | null; // Live remaining distance
+  remainingDuration?: number | null; // Live remaining duration
+  estimatedArrival?: Date | null; // Live estimated arrival time
 }
 
 const NavigationInterface: React.FC<NavigationInterfaceProps> = ({
@@ -26,6 +29,9 @@ const NavigationInterface: React.FC<NavigationInterfaceProps> = ({
   onCancelNavigation,
   onRecalculateRoute,
   routeFeatures,
+  remainingDistance,
+  remainingDuration,
+  estimatedArrival,
 }) => {
   const [fadeAnim] = useState(new Animated.Value(0));
   const [showOverview, setShowOverview] = useState(false);
@@ -61,8 +67,18 @@ const NavigationInterface: React.FC<NavigationInterfaceProps> = ({
 
   // Calculate estimated arrival time
   const getEstimatedArrival = (): string => {
-    if (!route) return "";
-
+    if (!route || !route.duration) return "";
+    // Use the estimatedArrival prop if available (from useRoute)
+    if (
+      typeof estimatedArrival === "object" &&
+      estimatedArrival instanceof Date
+    ) {
+      return estimatedArrival.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
+    // Fallback: calculate from now + route.duration
     const arrivalTime = new Date(Date.now() + route.duration * 1000);
     return arrivalTime.toLocaleTimeString([], {
       hour: "2-digit",
@@ -182,13 +198,21 @@ const NavigationInterface: React.FC<NavigationInterfaceProps> = ({
                 <View style={styles.routeStat}>
                   <Text style={styles.routeStatLabel}>Restant</Text>
                   <Text style={styles.routeStatValue}>
-                    {route ? formatDistance(route.distance) : ""}
+                    {remainingDistance != null
+                      ? formatDistance(remainingDistance)
+                      : route
+                      ? formatDistance(route.distance)
+                      : ""}
                   </Text>
                 </View>
                 <View style={styles.routeStat}>
                   <Text style={styles.routeStatLabel}>Durée</Text>
                   <Text style={styles.routeStatValue}>
-                    {route ? formatDuration(route.duration) : ""}
+                    {remainingDuration != null
+                      ? formatDuration(remainingDuration)
+                      : route
+                      ? formatDuration(route.duration)
+                      : ""}
                   </Text>
                 </View>
                 <View style={styles.routeStat}>

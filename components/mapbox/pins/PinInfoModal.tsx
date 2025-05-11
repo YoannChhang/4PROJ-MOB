@@ -7,10 +7,10 @@ import { PinRead } from "@/types/api";
 // Human-readable labels for pin types
 const TYPE_LABELS: Record<string, string> = {
   obstacle: "Obstacle",
-  traffic_jam: "Traffic Jam",
+  traffic_jam: "Embouteillage",
   cop: "Police",
   accident: "Accident",
-  roadwork: "Road Work",
+  roadwork: "Travaux",
 };
 
 // Map pin types to their corresponding icons
@@ -37,9 +37,12 @@ interface PinInfoModalProps {
   onClose: () => void;
 }
 
-const PinInfoModal: React.FC<PinInfoModalProps> = ({ selectedPin, onClose }) => {
+const PinInfoModal: React.FC<PinInfoModalProps> = ({
+  selectedPin,
+  onClose,
+}) => {
   const bottomSheetModalRef = useRef<BottomSheetModal>(null);
-  
+
   const snapPoints = useMemo(() => ["25%"], []);
 
   useEffect(() => {
@@ -50,11 +53,14 @@ const PinInfoModal: React.FC<PinInfoModalProps> = ({ selectedPin, onClose }) => 
     }
   }, [selectedPin]);
 
-  const handleSheetChanges = useCallback((index: number) => {
-    if (index === -1) {
-      onClose();
-    }
-  }, [onClose]);
+  const handleSheetChanges = useCallback(
+    (index: number) => {
+      if (index === -1) {
+        onClose();
+      }
+    },
+    [onClose]
+  );
 
   if (!selectedPin) return null;
 
@@ -89,9 +95,11 @@ const PinInfoModal: React.FC<PinInfoModalProps> = ({ selectedPin, onClose }) => 
         )}
 
         <View style={styles.footer}>
-          <Text style={styles.timestamp}>Reported at {formatDate(created_at)}</Text>
+          <Text style={styles.timestamp}>
+            Signalé à {formatDate(created_at)}
+          </Text>
           <Text style={styles.reportedBy}>
-            By {selectedPin.user.name || "Anonymous User"}
+            Par {selectedPin.user.name || "Utilisateur anonyme"}
           </Text>
         </View>
       </BottomSheetView>

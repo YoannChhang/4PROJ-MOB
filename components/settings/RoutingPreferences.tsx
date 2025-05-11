@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, Switch } from 'react-native';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import React from "react";
+import { View, Text, StyleSheet, Switch } from "react-native";
+import { Colors } from "@/constants/Colors";
+import { useColorScheme } from "@/hooks/useColorScheme";
 
 export interface RoutingPreference {
   id: string;
@@ -14,21 +14,26 @@ interface RoutingPreferencesProps {
   onToggle: (id: string, value: boolean) => void;
 }
 
-const RoutingPreferences: React.FC<RoutingPreferencesProps> = ({ 
-  preferences, 
-  onToggle 
+const RoutingPreferences: React.FC<RoutingPreferencesProps> = ({
+  preferences,
+  onToggle,
 }) => {
-  const colorScheme = useColorScheme() ?? 'light';
+  const colorScheme = useColorScheme() ?? "light";
 
   return (
     <View style={styles.container}>
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
-        Routing Preferences
+        Préférences d'itinéraire
       </Text>
-      
+
       {preferences.map((preference) => (
         <View key={preference.id} style={styles.preferenceItem}>
-          <Text style={[styles.preferenceLabel, { color: Colors[colorScheme].text }]}>
+          <Text
+            style={[
+              styles.preferenceLabel,
+              { color: Colors[colorScheme].text },
+            ]}
+          >
             {preference.label}
           </Text>
           <Switch
@@ -50,16 +55,16 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 22,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 16,
   },
   preferenceItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: "#e0e0e0",
   },
   preferenceLabel: {
     fontSize: 16,
