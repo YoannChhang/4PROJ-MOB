@@ -37,9 +37,7 @@ export const fetchRoute = async (
   url += `?${params.toString()}`;
 
   try {
-    console.log(`Fetching route from Mapbox: ${url}`); // Log the request
     const response = await axios.get<MapboxDirectionsResponse>(url);
-    console.log("Mapbox response received:", response.status);
     return response.data;
   } catch (error) {
     console.error(
