@@ -1,8 +1,16 @@
+/**
+ * LocationProvider handles location permissions and provides a search session token for Mapbox.
+ * Displays a fallback screen prompting the user to allow location access if not granted.
+ */
+
 import React, { createContext, useEffect, useState, useContext } from "react";
 import { View, Text, Button, StyleSheet } from "react-native";
 import * as Location from "expo-location";
 import { SessionToken, SessionTokenLike } from "@mapbox/search-js-core";
 
+/**
+ * Context shape exposed to consumers.
+ */
 interface LocationContextType {
   hasForegroundPermission: boolean;
   hasBackgroundPermission: boolean;
@@ -15,6 +23,10 @@ const LocationContext = createContext<LocationContextType | undefined>(
   undefined
 );
 
+/**
+ * LocationProvider wraps the app with permission checks.
+ * If permissions are not granted, a fallback UI is shown.
+ */
 export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -29,14 +41,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({
     checkPermissions();
   }, []);
 
-  // useEffect(() => {
-  //   console.log("Foreground Permission: ", hasForegroundPermission);
-  // }, [hasForegroundPermission]);
-
-  // useEffect(() => {
-  //   console.log("Background Permission: ", hasBackgroundPermission);
-  // }, [hasBackgroundPermission]);
-
+  /**
+   * Checks the current foreground and background location permissions.
+   */
   const checkPermissions = async () => {
     const { status: foregroundStatus } =
       await Location.getForegroundPermissionsAsync();
@@ -47,11 +54,17 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({
     setHasBackgroundPermission(backgroundStatus === "granted");
   };
 
+  /**
+   * Requests foreground location access.
+   */
   const requestForegroundPermission = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     setHasForegroundPermission(status === "granted");
   };
 
+  /**
+   * Requests background location access.
+   */
   const requestBackgroundPermission = async () => {
     const { status } = await Location.requestBackgroundPermissionsAsync();
     setHasBackgroundPermission(status === "granted");
@@ -76,6 +89,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 };
 
+/**
+ * Custom hook to consume LocationContext.
+ * Throws if used outside of provider.
+ */
 export const useLocation = () => {
   const context = useContext(LocationContext);
   if (!context) {
@@ -84,6 +101,9 @@ export const useLocation = () => {
   return context;
 };
 
+/**
+ * Fallback UI shown when location permissions are not yet granted.
+ */
 const LocationPermissionScreen = () => {
   const {
     hasForegroundPermission,

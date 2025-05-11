@@ -1,3 +1,9 @@
+/**
+ * UserProvider manages authentication state, user profile data, and preferences.
+ * It supports both Google Sign-In and email/password login flows.
+ * It also handles bearer token setup for secure API communication.
+ */
+
 import React, {
   createContext,
   useState,
@@ -25,7 +31,10 @@ import { ApiResponse, User, UserPreferences } from "@/types/api";
 import { Platform } from "react-native";
 import { useRouter } from "expo-router";
 
-// Define context interface
+/**
+ * UserContextType defines the shape of the authentication context.
+ */
+interf
 interface UserContextType {
   userData: User;
   setUserData: React.Dispatch<React.SetStateAction<User>>;
@@ -49,7 +58,7 @@ interface UserContextType {
   updatePreferences: (preferences: UserPreferences) => Promise<void>;
 }
 
-// Create the context with a default value
+// Create context with default values (mocked empty implementation)
 const UserContext = createContext<UserContextType>({
   userData: {
     preferences: {
@@ -68,7 +77,9 @@ const UserContext = createContext<UserContextType>({
   updatePreferences: async () => {},
 });
 
-// Create a hook to use the user context
+/**
+ * Custom hook to consume the UserContext.
+ */
 export const useUser = () => useContext(UserContext);
 
 interface UserProviderProps {
@@ -90,8 +101,11 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
   const isSignedIn = useMemo(() => !!bearerToken, [bearerToken]);
 
+  /**
+   * Configures Google Sign-In and checks if the user is already signed in.
+   * If signed in, fetches user data and sets it in the context.
+   */
   useEffect(() => {
-    // Configure Google Sign-In and check if user is already signed in
     const initializeAuth = async () => {
       try {
         configureGoogleSignIn();
@@ -100,30 +114,21 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         if (currentUser) {
           const { idToken, user } = currentUser as GoogleUser;
 
-          // Get the bearer token
           if (idToken) {
             try {
-              // Choose the appropriate Google auth method based on platform
               const googleAuthMethod =
                 Platform.OS === "ios" ? googleIOS : googleAndroid;
 
               googleAuthMethod(idToken)
                 .then((res) => {
-                  // Extract token from response
                   const token = res.data.access_token || undefined;
                   setBearerToken(token);
 
-                  // Set the token for all future API requests
                   setAuthToken(token);
 
-                  // Fetch complete user profile from backend
                   getCurrentUser()
                     .then((userResponse) => {
-                      // user is Google data and userResponse.data is BE data
                       if (userResponse.data && user) {
-                        // setUserData(userResponse.data);
-
-                        console.log(userResponse.data.preferences);
                         setUserData({
                           email: user.email,
                           name: `${user.familyName} ${user.givenName}`,
@@ -155,6 +160,14 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     initializeAuth();
   }, []);
 
+  /**
+   * Registers a new user with the provided credentials.
+   * @param name - User's name
+   * @param email - User's email
+   * @param password - User's password
+   * @param onSuccess - Callback function to call on successful registration
+   * @param onFail - Callback function to call on failed registration
+   */
   const register = async (
     name: string,
     email: string,
@@ -179,18 +192,16 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       });
   };
 
+  /**
+   * Finalizes the login process once bearer token is acquired.
+   */
   const afterSignIn = (res: ApiResponse<any>) => {
-    // Extract token from response
     const token = res.data?.access_token || "";
-    console.log("Sign in successful, setting bearer token");
 
-    // Set the token for all future API requests
     setAuthToken(token);
 
-    // Update the state - this will trigger the isSignedIn effect in useAlertPins
     setBearerToken(token);
 
-    // Fetch complete user profile from backend
     getCurrentUser()
       .then((userResponse) => {
         if (userResponse.data) {
@@ -204,6 +215,9 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     router.dismissTo("/");
   };
 
+  /**
+   * Signs in either with Google or with email/password.
+   */
   const signIn = async (
     isGoogle: boolean,
     onFail: (msg: string) => void,
@@ -236,16 +250,13 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
     try {
       await GoogleSignin.hasPlayServices();
-      // Use any to avoid type issues with GoogleSignin's changing API
       const { data: signedUser } = await GoogleSignin.signIn();
 
       if (signedUser) {
         const { idToken } = signedUser as GoogleUser;
 
-        // Get the bearer token
         if (idToken) {
           try {
-            // Choose the appropriate Google auth method based on platform
             const googleAuthMethod =
               Platform.OS === "ios" ? googleIOS : googleAndroid;
 
@@ -269,15 +280,15 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     }
   };
 
+  /**
+   * Signs out the user, clears token and resets user state.
+   */
   const signOut = async () => {
     if (!isSignedIn) return;
 
     try {
       setIsLoading(true);
-      console.log("Signing out, clearing auth token");
       await GoogleSignin.signOut();
-
-      // Update user data and clear token - this will trigger the isSignedIn effect in useAlertPins
       setUserData({
         preferences: {
           avoid_tolls: false,
@@ -286,10 +297,8 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         },
       } as User);
 
-      // Clear the auth token from API headers
       setAuthToken(undefined);
 
-      // Update state after token is cleared from API headers
       setBearerToken(undefined);
     } catch (error) {
       console.error("Error signing out:", error);
@@ -298,24 +307,23 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     }
   };
 
-  // Add new function to update user preferences
+  /**
+   * Updates user preferences on the backend and reflects changes locally.
+   */
   const updatePreferences = useCallback(
     async (preferences: UserPreferences) => {
       if (!isSignedIn) return;
 
       try {
         setIsLoading(true);
-        console.log("Updating user preferences:", preferences);
 
         const response = await updateUser({ preferences });
 
         if (response.data) {
-          // Update the local user data state with the updated preferences
           setUserData((prevData) => ({
             ...prevData,
             preferences: response.data.preferences || preferences,
           }));
-          console.log("User preferences updated successfully");
         }
       } catch (error) {
         console.error("Error updating user preferences:", error);

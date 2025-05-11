@@ -1,8 +1,16 @@
-// providers/PinProvider.tsx
+/**
+ * PinProvider manages alert pins reported by users (e.g. obstacles, accidents).
+ * Provides functions to fetch nearby pins, report new ones, and remove existing ones.
+ * It also exposes state such as the selected pin, loading/error status, and search radius.
+ */
+
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { fetchNearbyPins, createPin, deletePin } from '@/services/useService';
 import { PinRead, PinType } from '@/types/api';
 
+/**
+ * Context type defining exposed state and actions related to pins.
+ */
 interface PinContextType {
   pins: PinRead[];
   loading: boolean;
@@ -23,6 +31,10 @@ interface PinProviderProps {
   initialRadius?: number;
 }
 
+/**
+ * Provides alert pin data and actions to its descendants.
+ * Automatically handles loading state and error reporting.
+ */
 export const PinProvider: React.FC<PinProviderProps> = ({ 
   children, 
   initialRadius = 10 
@@ -33,6 +45,9 @@ export const PinProvider: React.FC<PinProviderProps> = ({
   const [selectedPin, setSelectedPin] = useState<PinRead | null>(null);
   const [radiusKm, setRadiusKm] = useState(initialRadius);
 
+  /**
+   * Fetches all pins near a given coordinate, within the configured radius.
+   */
   const fetchPins = async (longitude: number, latitude: number) => {
     setLoading(true);
     setError(null);
@@ -41,7 +56,6 @@ export const PinProvider: React.FC<PinProviderProps> = ({
       console.log('Fetching pins at:', { longitude, latitude, radiusKm });
       const response = await fetchNearbyPins(longitude, latitude, radiusKm);
       if (response.data) {
-        // Log the number of pins fetched for debugging
         console.log(`Fetched ${response.data.length} pins from API`);
         setPins(response.data);
       }
@@ -53,7 +67,16 @@ export const PinProvider: React.FC<PinProviderProps> = ({
     }
   };
 
-  const reportPin = async (type: PinType, longitude: number, latitude: number, description?: string) => {
+  /**
+   * Reports a new pin of a given type and location to the backend.
+   * Updates local state immediately if successful.
+   */
+  const reportPin = async (
+    type: PinType,
+    longitude: number,
+    latitude: number,
+    description?: string
+  ) => {
     setLoading(true);
     setError(null);
     
@@ -76,6 +99,9 @@ export const PinProvider: React.FC<PinProviderProps> = ({
     }
   };
 
+  /**
+   * Deletes a pin by ID, and clears selection if the deleted pin was selected.
+   */
   const removePin = async (pinId: string) => {
     setLoading(true);
     setError(null);
@@ -114,7 +140,10 @@ export const PinProvider: React.FC<PinProviderProps> = ({
   );
 };
 
-// Custom hook to use the pin context
+/**
+ * Hook to consume the PinContext.
+ * Throws an error if used outside of a PinProvider.
+ */
 export const usePins = () => {
   const context = useContext(PinContext);
   if (context === undefined) {
