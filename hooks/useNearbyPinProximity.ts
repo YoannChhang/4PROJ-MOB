@@ -67,18 +67,12 @@ export const useNearbyPinProximity = (
 
       console.log(`[useNearbyPinProximity] Selected pin ${selectedPinToAttempt.id} for confirmation attempt.`);
       setPinForConfirmationAttempt(selectedPinToAttempt);
-      lastGlobalPromptTimeRef.current = now; // Update timestamp for the global cooldown
-      recentlyAttemptedPinIdsRef.current.add(selectedPinToAttempt.id); // Mark as attempted for this cooldown window
+      recentlyAttemptedPinIdsRef.current.add(selectedPinToAttempt.id); 
     }
   }, [userLocation, alertPins, isPinConfirmationModalVisible, pinForConfirmationAttempt]);
 
   const confirmPinHandled = useCallback((pinId: string) => {
-    // Called from app/index.tsx after the modal for `pinId` is resolved.
-    // This allows a new pin to be picked by the useEffect if conditions are met.
     setPinForConfirmationAttempt(null);
-    // `recentlyAttemptedPinIdsRef` will clear based on its own timer logic,
-    // or when the global cooldown expires. No need to remove `pinId` here immediately,
-    // as we don't want to re-prompt for it right away if the user lingers.
     console.log(`[useNearbyPinProximity] Confirmation handled for pin ${pinId}. Ready for next potential prompt.`);
   }, []);
 
