@@ -79,6 +79,22 @@ The difference between the two .env is that one is kept hidden from the builder 
    npm run android
    ```
 
+5. Or build the APK
+   ```bash
+   npx expo export
+   ```
+
+   then, assemble the APK for android
+
+   ```bash
+      cd ./android
+      ./gradlew assembleRealease
+   ```
+
+6. Use the APK
+
+   The APK would be available at ``\android\app\build\outputs\apk`` and can be used to install the application on your android device.
+
 ## Troubleshooting
 
 ### Common Issues
@@ -101,15 +117,6 @@ The difference between the two .env is that one is kept hidden from the builder 
   1. Verify your `.env` and `.env.rnconfig` files exist
   2. Check that the Mapbox tokens are valid. Make sure to not confuse between secret and public keys.
   3. Rebuild the app
-
-## Development
-
-The app uses Expo for development. Key directories:
-
-- `/app`: Main application code
-- `/components`: Reusable React components
-- `/hooks`: Custom React hooks
-- `/types`: TypeScript type definitions
 
 ## License
 
